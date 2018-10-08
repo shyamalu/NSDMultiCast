@@ -15,8 +15,13 @@ public class P2PApplication extends Application {
     public static final String SHARED_PREF = "shardPref";
     public static final String USER_ID = "USER_ID";
     public static final String DEVICE_ID = "DEVICE_ID";
+    public static final String NEW_MESSAGE_ADDED = "NEW_MESSAGE_ADDED";
     public static final String messageEvent = "message-event";
     public static final String uiMessageEvent = "ui-message-event";
+    public static final String newMessageAddedOnDevice = "new-message-added-event";
+    public static final String MULTICAST_IP_ADDRESS = "230.0.0.0";
+    public static final String MULTICAST_IP_PORT = "4446";
+
 
     private static final String TAG = P2PApplication.class.getName();
     private static Context context;
@@ -75,6 +80,12 @@ public class P2PApplication extends Application {
         return userId;
     }
 
+
+    public static String getCurrentDevice() {
+        SharedPreferences pref = getContext().getSharedPreferences(SHARED_PREF, 0);
+        String deviceId = pref.getString("DEVICE_ID", null); // getting String
+        return deviceId;
+    }
 
     protected void attachBaseContext(Context base) {
         super.attachBaseContext(base);

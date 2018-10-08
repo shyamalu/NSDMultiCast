@@ -13,10 +13,17 @@ public class HandShakingMessage {
     String messageType;
 
     @Expose(serialize = true, deserialize = true)
+    @SerializedName("reply")
+    String reply;
+
+
+    @Expose(serialize = true, deserialize = true)
     @SerializedName("from")
     String from;
 
     public String getFrom() { return from; }
+
+    public String getReply() { return reply; }
 
     public String getMessageType() {
         return messageType;
@@ -30,10 +37,11 @@ public class HandShakingMessage {
     @SerializedName("infos")
     List<HandShakingInfo> infos;
 
-    public HandShakingMessage(String from, String messageType, List<HandShakingInfo> infos) {
+    public HandShakingMessage(String from, String messageType, String reply, List<HandShakingInfo> infos) {
         this.messageType = messageType;
         this.infos = infos;
         this.from = from;
+        this.reply = reply;
     }
 
 

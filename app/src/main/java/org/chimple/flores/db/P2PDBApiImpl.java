@@ -1,7 +1,9 @@
 package org.chimple.flores.db;
 
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
+import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
 import com.google.gson.Gson;
@@ -50,9 +52,14 @@ import org.chimple.flores.db.entity.P2PUserIdDeviceIdAndMessage;
 import org.chimple.flores.db.entity.P2PUserIdMessage;
 import org.chimple.flores.db.entity.ProfileMessage;
 import org.chimple.flores.db.entity.ProfileMessageDeserializer;
+import org.chimple.flores.db.entity.SyncInfoMessage;
+import org.chimple.flores.db.entity.SyncInfoMessageDeserializer;
 
+import static org.chimple.flores.application.P2PApplication.NEW_MESSAGE_ADDED;
 import static org.chimple.flores.application.P2PApplication.SHARED_PREF;
 import static org.chimple.flores.application.P2PApplication.USER_ID;
+import static org.chimple.flores.application.P2PApplication.newMessageAddedOnDevice;
+import static org.chimple.flores.multicast.MulticastManager.multiCastConnectionChangedEvent;
 
 public class P2PDBApiImpl {
     private static final String TAG = P2PDBApiImpl.class.getName();
@@ -87,7 +94,7 @@ public class P2PDBApiImpl {
         Log.i(TAG, "inserted data" + info);
     }
 
-    public void persistP2PSyncMessage(P2PSyncInfo message) {
+    public String persistP2PSyncMessage(P2PSyncInfo message) {
         Log.i(TAG, "got Sync info:" + message.userId);
         Log.i(TAG, "got Sync info:" + message.sequence);
 
@@ -128,26 +135,22 @@ public class P2PDBApiImpl {
         } else {
             Log.i(TAG, "existing data" + message);
         }
+        return message.message;
     }
 
     public List<P2PSyncInfo> fetchByUserAndDeviceAndSequence(String userId, String deviceId, Long sequence) {
         return db.p2pSyncDao().fetchByUserAndDeviceAndSequence(userId, deviceId, sequence);
     }
 
-    public void persistP2PSyncInfos(String p2pSyncJson) {
+    public String persistP2PSyncInfos(String p2pSyncJson) {
+        String result = "";
         try {
             List<P2PSyncInfo> infos = this.deSerializeP2PSyncInfoFromJson(p2pSyncJson);
             db.beginTransaction();
             try {
                 for (P2PSyncInfo info : infos) {
-                    this.persistP2PSyncMessage(info);
+                    result = this.persistP2PSyncMessage(info);
                 }
-
-                // if(!P2PApplication.addOnceMessages) {
-                //     Log.i(TAG, "adding few new messages" + P2PApplication.addOnceMessages);
-                //     DBSyncManager.getInstance(this.context).addMessage("SUN", "SUNNY", "Chat", "🍻🍷🥂" + "SUN", true, "sessionSSS" + "-SUN");
-                //     P2PApplication.addOnceMessages = true;
-                // }
 
                 db.setTransactionSuccessful();
             } catch (Exception e) {
@@ -158,6 +161,7 @@ public class P2PDBApiImpl {
         } catch (Exception ex) {
             ex.printStackTrace();
         }
+        return result;
     }
 
 
@@ -230,7 +234,7 @@ public class P2PDBApiImpl {
     }
 
 
-    public String serializeHandShakingMessage() {
+    public String serializeHandShakingMessage(boolean needAcknowlegement) {
         try {
             List<HandShakingInfo> handShakingInfos = new ArrayList<HandShakingInfo>();
             P2PLatestInfoByUserAndDevice[] infos = db.p2pSyncDao().getLatestInfoAvailableByUserIdAndDeviceId();
@@ -241,7 +245,8 @@ public class P2PDBApiImpl {
             }
 
             Gson gson = this.registerHandShakingMessageBuilder();
-            HandShakingMessage message = new HandShakingMessage(P2PApplication.getLoggedInUser(), "handshaking", handShakingInfos);
+            String reply = needAcknowlegement ? "true" : "false";
+            HandShakingMessage message = new HandShakingMessage(P2PApplication.getLoggedInUser(), "handshaking", reply, handShakingInfos);
             Type handShakingType = new TypeToken<HandShakingMessage>() {
             }.getType();
             String json = gson.toJson(message, handShakingType);
@@ -319,66 +324,57 @@ public class P2PDBApiImpl {
     private Gson registerP2PSyncInfoBuilder() {
         GsonBuilder gsonBuilder = new GsonBuilder();
         gsonBuilder.registerTypeAdapter(P2PSyncInfo.class, new P2PSyncInfoDeserializer());
+        gsonBuilder.registerTypeAdapter(SyncInfoMessage.class, new SyncInfoMessageDeserializer());
         Gson gson = gsonBuilder.create();
 
         return gson;
     }
 
     public String convertSingleP2PSyncInfoToJsonUsingStreaming(P2PSyncInfo syncInfo) {
-        String json = "";
+
         try {
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            OutputStreamWriter outputStreamWriter = new OutputStreamWriter(baos, "UTF-8");
-            JsonWriter writer = new JsonWriter(outputStreamWriter);
-            writer.setIndent("");
-            writer.beginArray();
+            List<P2PSyncInfo> p2PSyncInfos = new ArrayList<P2PSyncInfo>();
+            p2PSyncInfos.add(syncInfo);
+
             Gson gson = this.registerP2PSyncInfoBuilder();
-            gson.toJson(syncInfo, P2PSyncInfo.class, writer);
-            writer.endArray();
-            writer.close();
-            json = baos.toString("UTF-8");
+            SyncInfoMessage message = new SyncInfoMessage("syncInfoMessage", p2PSyncInfos);
+            Type syncInfoMessageType = new TypeToken<SyncInfoMessage>() {
+            }.getType();
+            String json = gson.toJson(message, syncInfoMessageType);
+            Log.d(TAG, "convertSingleP2PSyncInfoToJsonUsingStreaming: " + json);
+            return json;
         } catch (Exception e) {
-            e.printStackTrace();
+            Log.e(TAG, e.getMessage());
+            return "";
         }
-        Log.d(TAG, "convertSingleP2PSyncInfoToJsonUsingStreaming: " + json);
-        return json;
     }
 
-    public String convertP2PSyncInfoToJsonUsingStreaming(List<P2PSyncInfo> objList) {
+    public String convertP2PSyncInfoToJsonUsingStreaming(List<P2PSyncInfo> p2PSyncInfos) {
         String json = "";
         try {
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            OutputStreamWriter outputStreamWriter = new OutputStreamWriter(baos, "UTF-8");
-            JsonWriter writer = new JsonWriter(outputStreamWriter);
-            writer.setIndent("");
-            writer.beginArray();
             Gson gson = this.registerP2PSyncInfoBuilder();
-            for (P2PSyncInfo myobj : objList) {
-                gson.toJson(myobj, P2PSyncInfo.class, writer);
-            }
-            writer.endArray();
-            writer.close();
-            json = baos.toString("UTF-8");
+            SyncInfoMessage message = new SyncInfoMessage("syncInfoMessage", p2PSyncInfos);
+            Type syncInfoMessageType = new TypeToken<SyncInfoMessage>() {
+            }.getType();
+            json = gson.toJson(message, syncInfoMessageType);
+            Log.d(TAG, "convertSingleP2PSyncInfoToJsonUsingStreaming: " + json);
         } catch (Exception e) {
-            e.printStackTrace();
+            Log.e(TAG, e.getMessage());
         }
-        return json;
-    }
-
-    public String convertP2PSyncInfoToJson(List<P2PSyncInfo> infos) {
-        Type collectionType = new TypeToken<List<P2PSyncInfo>>() {
-        }.getType();
-        Gson gson = this.registerP2PSyncInfoBuilder();
-        String json = gson.toJson(infos, collectionType);
         return json;
     }
 
     private List<P2PSyncInfo> deSerializeP2PSyncInfoFromJson(String p2pSyncJson) {
         Log.i(TAG, "P2P Sync Info received" + p2pSyncJson);
         Gson gson = this.registerP2PSyncInfoBuilder();
-        Type collectionType = new TypeToken<List<P2PSyncInfo>>() {
+        List<P2PSyncInfo> infos = null;
+        Type SyncInfoMessageType = new TypeToken<SyncInfoMessage>() {
         }.getType();
-        List<P2PSyncInfo> infos = gson.fromJson(p2pSyncJson, collectionType);
+        SyncInfoMessage message = gson.fromJson(p2pSyncJson, SyncInfoMessageType);
+        if (message != null) {
+            infos = message.getInfos();
+        }
+
         return infos;
     }
 
@@ -538,7 +534,6 @@ public class P2PDBApiImpl {
             addDeviceToSync(deviceId, true);
         }
 
-        // JobUtils.scheduledJob(this.context, true);
     }
 
     public boolean addMessage(String userId, String recipientId, String messageType, String message) {
@@ -555,12 +550,45 @@ public class P2PDBApiImpl {
             P2PSyncInfo info = new P2PSyncInfo(userId, deviceId, maxSequence, recipientId, message, messageType);
             db.p2pSyncDao().insertP2PSyncInfo(info);
             Log.i(TAG, "inserted data" + info);
+            broadcastNewMessageAdded(info);
             this.addDeviceToSyncAndStartJobIfNotRunning(recipientId);
             return true;
         } catch (Exception e) {
             Log.e(TAG, e.getMessage());
             return false;
         }
+    }
+
+    public boolean deleteDataPerDeviceId(String deviceId) {
+        try {
+            db.p2pSyncDao().deletePerDeviceID(deviceId);
+            Log.i(TAG, "deleted data" + deviceId);
+            return true;
+        } catch (Exception e) {
+            Log.e(TAG, e.getMessage());
+            return false;
+        }
+    }
+
+    // for testing only
+    public boolean addMessage(String userId, String deviceId, Long sequence, String recipientId, String messageType, String message) {
+        try {
+            P2PSyncInfo info = new P2PSyncInfo(userId, deviceId, sequence, recipientId, message, messageType);
+            db.p2pSyncDao().insertP2PSyncInfo(info);
+            Log.i(TAG, "inserted data" + info);
+            broadcastNewMessageAdded(info);
+            return true;
+        } catch (Exception e) {
+            Log.e(TAG, e.getMessage());
+            return false;
+        }
+    }
+
+    private void broadcastNewMessageAdded(P2PSyncInfo info) {
+        Intent intent = new Intent(newMessageAddedOnDevice);
+        intent.putExtra(NEW_MESSAGE_ADDED, info);
+        LocalBroadcastManager.getInstance(context).sendBroadcast(intent);
+
     }
 
     public boolean addMessage(String userId, String recipientId, String messageType, String message, Boolean status, String sessionId) {

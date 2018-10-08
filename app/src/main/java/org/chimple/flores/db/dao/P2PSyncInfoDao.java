@@ -47,6 +47,9 @@ public interface P2PSyncInfoDao {
     public List<P2PSyncInfo> fetchByUserAndDeviceAndSequence(String userId, String deviceId, Long sequence);
 
 
+    @Query("DELETE FROM P2PSyncInfo WHERE device_id = :deviceId")
+    public void deletePerDeviceID(String deviceId);
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     public Long insertP2PSyncInfo(P2PSyncInfo info);
 

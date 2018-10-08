@@ -1,19 +1,17 @@
 package org.chimple.flores.db;
 
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.content.res.AssetManager;
 import android.os.AsyncTask;
 import android.support.annotation.NonNull;
 import android.util.Log;
 
+import org.chimple.flores.application.P2PApplication;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-
-
-import static org.chimple.flores.application.P2PApplication.SHARED_PREF;
 
 public class DatabaseInitializer {
 
@@ -25,15 +23,10 @@ public class DatabaseInitializer {
     }
 
     public static void populateWithTestData(AppDatabase db, Context context) {
-        SharedPreferences pref = context.getSharedPreferences(SHARED_PREF, 0);
-        String generateUserId = pref.getString("USER_ID", null); // getting String
-        Log.i(TAG, "generateUserId :" + generateUserId);
-        String generatedDeviceId = pref.getString("DEVICE_ID", null); // getting String
-        Log.i(TAG, "generatedDeviceId :" + generatedDeviceId);
         AssetManager assetManager = context.getAssets();
         InputStream inputStream = null;
         try {
-            inputStream = assetManager.open("database.csv");
+            inputStream = assetManager.open("database_2.csv");
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -51,13 +44,10 @@ public class DatabaseInitializer {
                     Log.d(TAG + "AppDatabase", "Skipping bad row");
                 }
 
-                String userId = generateUserId;
-                String deviceId = generatedDeviceId;
-                String recipientUserId = columns[2];
-                String message = columns[3];
-                String messageType = columns[4];
+                String message = columns[0];
+                String messageType = columns[1];
 
-                P2PDBApiImpl.getInstance(context).persistMessage(userId, deviceId, recipientUserId, message, messageType);
+                P2PDBApiImpl.getInstance(context).persistMessage(P2PApplication.getLoggedInUser(), P2PApplication.getCurrentDevice(), "", message, messageType);
             }
 
             P2PDBApiImpl.getInstance(context).upsertProfile();

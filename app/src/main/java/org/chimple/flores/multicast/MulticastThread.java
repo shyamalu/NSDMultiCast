@@ -51,8 +51,8 @@ public class MulticastThread extends Thread {
 //            multicastSocket.setSoTimeout(100);
 //            multicastSocket.setTimeToLive(2);
         } catch (BindException e) {
+            e.printStackTrace();
             handler.post(new Runnable() {
-
                 public void run() {
                     MulticastManager.getInstance(context).stopListening();
                 }
@@ -61,10 +61,9 @@ public class MulticastThread extends Thread {
             if (multicastPort < 1024)
                 error += "\nTry binding to a port larger than 1024.";
         } catch (IOException e) {
+            e.printStackTrace();
             handler.post(new Runnable() {
-
                 public void run() {
-
                     MulticastManager.getInstance(context).stopListening();
                 }
             });

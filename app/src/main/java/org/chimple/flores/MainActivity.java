@@ -22,8 +22,6 @@ import org.chimple.flores.multicast.MulticastManager;
 public class MainActivity extends AppCompatActivity {
 
     private Toolbar toolbar;
-    private EditText multicastIPField;
-    private EditText multicastPortField;
     private TextView consoleView;
     private EditText messageToSendField;
     private MulticastManager manager;
@@ -42,8 +40,6 @@ public class MainActivity extends AppCompatActivity {
 
     protected void onStart() {
         super.onStart();
-        this.multicastIPField = (EditText) findViewById(R.id.multicastIP);
-        this.multicastPortField = (EditText) findViewById(R.id.multicastPort);
         this.consoleView = (TextView) findViewById(R.id.consoleTextView);
         this.messageToSendField = (EditText) findViewById(R.id.messageToSend);
         LocalBroadcastManager.getInstance(this).registerReceiver(mMessageReceiver, new IntentFilter(P2PApplication.uiMessageEvent));
@@ -73,24 +69,13 @@ public class MainActivity extends AppCompatActivity {
         return super.onOptionsItemSelected(item);
     }
 
-    public void onToggleHexCheckbox(View view) {
-        if(view.getId() == R.id.hexDisplayCheckBox) {
-
-        }
-    }
 
     public void onButton(View view) {
         // Hide the keyboard
         InputMethodManager inputMethodManager = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
         inputMethodManager.hideSoftInputFromWindow(view.getWindowToken(), 0);
 
-        if (view.getId() == R.id.startListeningButton) {
-            if (manager.isListening()) {
-                manager.stopListening();
-            } else {
-                manager.startListening();
-            }
-        } else if (view.getId() == R.id.clearConsoleButton) {
+        if (view.getId() == R.id.clearConsoleButton) {
             clearConsole();
         } else if (view.getId() == R.id.sendMessageButton) {
             sendMulticastMessage(getMessageToSend());
@@ -107,15 +92,9 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void sendMulticastMessage(String message) {
-        if (this.multicastIPField.getText().toString() != null && this.multicastIPField.getText().toString().length() > 0) {
-            manager.setMulticastIpAddress(this.multicastIPField.getText().toString());
-        }
-
-        if (this.multicastPortField.getText().toString() != null && this.multicastPortField.getText().toString().length() > 0) {
-            manager.setMulticastPort(this.multicastPortField.getText().toString());
-        }
-
-        manager.sendMulticastMessage(message);
+        manager.addNewMessage(message);
+        final String consoleMessage = "[" + "You" + "]: " + message + "\n";
+        this.outputTextToConsole(consoleMessage);
     }
 
     public void outputTextToConsole(String message) {

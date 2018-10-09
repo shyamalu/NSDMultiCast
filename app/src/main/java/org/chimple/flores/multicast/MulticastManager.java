@@ -23,17 +23,17 @@ import org.chimple.flores.db.entity.SyncInfoItem;
 import org.chimple.flores.db.entity.SyncInfoMessage;
 import org.chimple.flores.db.entity.SyncInfoRequestMessage;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.chimple.flores.application.P2PApplication.MULTICAST_IP_ADDRESS;
 import static org.chimple.flores.application.P2PApplication.MULTICAST_IP_PORT;
@@ -53,7 +53,7 @@ public class MulticastManager {
     private int multicastPort;
     private P2PDBApiImpl p2PDBApiImpl;
     private DBSyncManager dbSyncManager;
-    private Map<String, HandShakingMessage> handShakingMessagesInCurrentLoop = new HashMap<String, HandShakingMessage>();
+    private Map<String, HandShakingMessage> handShakingMessagesInCurrentLoop = new ConcurrentHashMap<>();
     private Set<String> allSyncInfosReceived = new HashSet<String>();
 
     public static final String multiCastConnectionChangedEvent = "multicast-connection-changed-event";
@@ -374,7 +374,7 @@ public class MulticastManager {
     }
 
     public List<String> processInComingSyncRequestMessage(String message) {
-        List<String> jsonRequests = new ArrayList<String>();
+        List<String> jsonRequests = new CopyOnWriteArrayList<String>();
         SyncInfoRequestMessage request = p2PDBApiImpl.buildSyncRequstMessage(message);
         // process only if matching current device id
         if (request != null && request.getmDeviceId().equalsIgnoreCase(P2PApplication.getCurrentDevice())) {
@@ -389,7 +389,7 @@ public class MulticastManager {
 
     private void reset() {
         instance.handShakingMessagesInCurrentLoop = null;
-        instance.handShakingMessagesInCurrentLoop = new HashMap<String, HandShakingMessage>();
+        instance.handShakingMessagesInCurrentLoop = new ConcurrentHashMap<String, HandShakingMessage>();
     }
 
     private Set<HandShakingInfo> sortHandShakingInfos(final Map<String, HandShakingMessage> messages) {
@@ -426,7 +426,7 @@ public class MulticastManager {
         // sort by device id and sequence desc order
         final Set<HandShakingInfo> allHandShakingInfos = sortHandShakingInfos(messages);
         Iterator<HandShakingInfo> itReceived = allHandShakingInfos.iterator();
-        final Map<String, HandShakingInfo> uniqueHandShakeInfosReceived = new HashMap<String, HandShakingInfo>();
+        final Map<String, HandShakingInfo> uniqueHandShakeInfosReceived = new ConcurrentHashMap<String, HandShakingInfo>();
         while (itReceived.hasNext()) {
             HandShakingInfo info = itReceived.next();
             uniqueHandShakeInfosReceived.put(info.getUserId(), info);
@@ -451,7 +451,7 @@ public class MulticastManager {
     }
 
     public List<String> computeSyncInformation() {
-        List<String> computedMessages = new ArrayList<String>();
+        List<String> computedMessages = new CopyOnWriteArrayList<String>();
 
         final Map<String, HandShakingMessage> messages = Collections.unmodifiableMap(handShakingMessagesInCurrentLoop);
         instance.reset();
@@ -494,7 +494,7 @@ public class MulticastManager {
             }
         }
 
-        List<P2PSyncInfo> allSyncInfos = p2PDBApiImpl.buildSyncInformation(new ArrayList(allHandShakingInfos));
+        List<P2PSyncInfo> allSyncInfos = p2PDBApiImpl.buildSyncInformation(new CopyOnWriteArrayList(allHandShakingInfos));
         Iterator<P2PSyncInfo> it = allSyncInfos.iterator();
         while (it.hasNext()) {
             P2PSyncInfo p = it.next();

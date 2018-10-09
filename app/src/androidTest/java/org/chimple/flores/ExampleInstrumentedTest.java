@@ -13,6 +13,7 @@ import org.chimple.flores.application.P2PApplication;
 import org.chimple.flores.db.AppDatabase;
 import org.chimple.flores.db.P2PDBApiImpl;
 import org.chimple.flores.db.dao.P2PSyncInfoDao;
+import org.chimple.flores.db.entity.HandShakingInfo;
 import org.chimple.flores.db.entity.HandShakingMessage;
 import org.chimple.flores.db.entity.P2PSyncInfo;
 import org.chimple.flores.db.entity.P2PUserIdMessage;
@@ -112,6 +113,12 @@ public class ExampleInstrumentedTest {
         for (int i = 0; i < 10; i++) {
             setUpTestData("D", i + 1);
         }
+        for (int i = 0; i < 5; i++) {
+            int s = i + 1;
+            setUpTestData("A", s);
+            manager.getAllSyncInfosReceived().add("A-device"+"_"+"A"+"_"+s);
+        }
+
     }
 
 
@@ -129,7 +136,7 @@ public class ExampleInstrumentedTest {
         String recepientUserId = "recepientUserId";
         String message = generateMessage(user);
         String messageType = "Chat";
-        p2pDBAPI.addMessage(userId1, deviceId, sequence, recepientUserId, message, messageType);
+        p2pDBAPI.addMessage(userId1, deviceId, sequence, recepientUserId, messageType, message);
     }
 
     private String generateMessage(String from) {
@@ -143,6 +150,71 @@ public class ExampleInstrumentedTest {
         p2pDBAPI.deleteDataPerDeviceId("A-device");
         p2pDBAPI.deleteDataPerDeviceId("B-device");
         p2pDBAPI.deleteDataPerDeviceId("C-device");
+        p2pDBAPI.deleteDataPerDeviceId("D-device");
+    }
+
+    private void updateInfos(String userId, String deviceId) {
+        SharedPreferences pref = P2PApplication.getContext().getSharedPreferences(SHARED_PREF, 0); // 0 - for private mode
+        SharedPreferences.Editor editor = pref.edit();
+        editor.putString("USER_ID", userId);
+        editor.putString("DEVICE_ID", deviceId);
+        editor.commit(); // commit changes
+    }
+
+    @Test
+    public void testNewLogic() {
+        cleanData();
+        updateInfos("D", "D-device");
+        seedInitialDataForD();
+        String serializedHandShakingMessage = p2pDBAPI.serializeHandShakingMessage(false);
+        Log.d(TAG, serializedHandShakingMessage);
+        String handShakingFromA = "{\"from\":\"A-device\",\"infos\":[{\"deviceId\":\"A-device\",\"sequence\":10,\"userId\":\"A\"},{\"deviceId\":\"B-device\",\"sequence\":5,\"userId\":\"B\"},{\"deviceId\":\"C-device\",\"sequence\":6,\"userId\":\"C\"}],\"message_type\":\"handshaking\"}";
+        String handShakingFromB = "{\"from\":\"B-device\",\"infos\":[{\"deviceId\":\"A-device\",\"sequence\":5,\"userId\":\"A\"},{\"deviceId\":\"B-device\",\"sequence\":10,\"userId\":\"B\"},{\"deviceId\":\"C-device\",\"sequence\":4,\"userId\":\"C\"}],\"message_type\":\"handshaking\"}";
+//        String handShakingFromC = "{\"from\":\"C-device\",\"infos\":[{\"deviceId\":\"B-device\",\"sequence\":3,\"userId\":\"B\"},{\"deviceId\":\"C-device\",\"sequence\":10,\"userId\":\"C\"}],\"message_type\":\"handshaking\"}";
+//        manager.parseHandShakingMessage(handShakingFromC);
+        manager.parseHandShakingMessage(handShakingFromA);
+        manager.parseHandShakingMessage(handShakingFromB);
+        List<String> jsons = manager.generateSyncInfoPullRequest(manager.getAllHandShakeMessagesInCurrentLoop());
+
+
+        List<String> requests = new ArrayList<String>();
+        for (String json : jsons) {
+            if (json.contains("\"md\":\"B-device\"")) {
+                cleanData();
+                seedInitialDataForB();
+                updateInfos("B", "B-device");
+            }
+            else if (json.contains("\"md\":\"A-device\"")) {
+                cleanData();
+                seedInitialDataForA();
+                updateInfos("A", "A-device");
+            }
+            requests.addAll(manager.processInComingSyncRequestMessage(json));
+            cleanData();
+        }
+
+        updateInfos("D", "D-device");
+        seedInitialDataForD();
+        List<P2PSyncInfo> a = p2pDBAPI.getSyncInformationByUserIdAndDeviceId("A", "A-device");
+        List<P2PSyncInfo> d = p2pDBAPI.getSyncInformationByUserIdAndDeviceId("D", "D-device");
+
+        for (String s: requests) {
+            manager.processInComingSyncInfoMessage(s, "");
+        }
+
+
+        List<P2PSyncInfo> a1 = p2pDBAPI.getSyncInformationByUserIdAndDeviceId("A", "A-device");
+        List<P2PSyncInfo> b1 = p2pDBAPI.getSyncInformationByUserIdAndDeviceId("B", "B-device");
+        List<P2PSyncInfo> d1 = p2pDBAPI.getSyncInformationByUserIdAndDeviceId("D", "D-device");
+//        assertEquals(computedMessages.size(), 12);
+//        Iterator<String> it = computedMessages.iterator();
+//        while (it.hasNext()) {
+//            String p = it.next();
+//            Log.d(TAG, p);
+//        }
+        cleanData();
+        List<P2PSyncInfo> p2PSyncInfos = p2pDBAPI.getInfoByUserId("D");
+        assertEquals(p2PSyncInfos.size(), 0);
     }
 
     @Test

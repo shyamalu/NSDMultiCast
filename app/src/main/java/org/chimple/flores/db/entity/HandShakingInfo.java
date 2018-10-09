@@ -34,6 +34,10 @@ public class HandShakingInfo {
     @Expose(serialize = false, deserialize = false)
     private Long startingSequence;
 
+    @Expose(serialize = false, deserialize = false)
+    private String from;
+
+
     public HandShakingInfo() {
     }
 
@@ -62,6 +66,14 @@ public class HandShakingInfo {
 
     public void setStartingSequence(Long startingSequence) {
         this.startingSequence = startingSequence;
+    }
+
+    public String getFrom() {
+        return from;
+    }
+
+    public void setFrom(String sFrom) {
+        this.from = sFrom;
     }
 
     public void setSequence(Long sequence) {

@@ -52,8 +52,12 @@ import org.chimple.flores.db.entity.P2PUserIdDeviceIdAndMessage;
 import org.chimple.flores.db.entity.P2PUserIdMessage;
 import org.chimple.flores.db.entity.ProfileMessage;
 import org.chimple.flores.db.entity.ProfileMessageDeserializer;
+import org.chimple.flores.db.entity.SyncInfoItem;
 import org.chimple.flores.db.entity.SyncInfoMessage;
 import org.chimple.flores.db.entity.SyncInfoMessageDeserializer;
+import org.chimple.flores.db.entity.SyncInfoRequestMessage;
+import org.chimple.flores.db.entity.SyncItemDeserializer;
+import org.chimple.flores.db.entity.SyncRequestMessageDeserializer;
 
 import static org.chimple.flores.application.P2PApplication.NEW_MESSAGE_ADDED;
 import static org.chimple.flores.application.P2PApplication.SHARED_PREF;
@@ -95,43 +99,14 @@ public class P2PDBApiImpl {
     }
 
     public String persistP2PSyncMessage(P2PSyncInfo message) {
-        Log.i(TAG, "got Sync info:" + message.userId);
-        Log.i(TAG, "got Sync info:" + message.sequence);
-
+        Log.i(TAG, "got Sync userId:" + message.userId);
+        Log.i(TAG, "got Sync deviceId:" + message.deviceId);
+        Log.i(TAG, "got Sync sequence:" + message.sequence);
+        Log.i(TAG, "got Sync message:" + message.message);
         List found = db.p2pSyncDao().fetchByUserAndDeviceAndSequence(message.getUserId(), message.getDeviceId(), message.sequence);
         if (found == null || found.size() == 0) {
             db.p2pSyncDao().insertP2PSyncInfo(message);
             Log.i(TAG, "inserted data" + message);
-            SharedPreferences pref = this.context.getSharedPreferences(SHARED_PREF, 0);
-            String userId = pref.getString("USER_ID", null); // getting String
-
-            try {
-                if ((userId != null && message.recipientUserId != null && userId.equals(message.getRecipientUserId())) || message.messageType.equals("Photo")) {
-                    Log.i(TAG, "messageReceived intent constructing for user" + userId);
-                    //Intent intent = new Intent("org.chimple.flores.FloresPlugin$MessageReceivedActivity");                
-                    // Intent intent = new Intent(this.context, FloresPlugin.MessageReceivedActivity.class);
-                    // intent.putExtra("userId", message.userId);
-                    // intent.putExtra("deviceId", message.deviceId);
-                    // intent.putExtra("message", message.message);
-                    // intent.putExtra("sequence", message.sequence);
-                    // intent.putExtra("recipientUserId", message.recipientUserId);
-                    // intent.putExtra("status", message.status);
-                    // intent.putExtra("loggedAt", message.loggedAt.getTime());
-                    // intent.putExtra("messageType", message.messageType);
-                    // intent.putExtra("sessionId", message.sessionId);
-                    // intent.putExtra("step", message.step);
-                    // Log.i(TAG, "sending intent by starting activity");
-                    // intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-                    // this.context.startActivity(intent);
-                    // FloresPlugin.onMessageReceived(message);
-                    //LocalBroadcastManager.getInstance(this.context).sendBroadcast(intent);
-                    Log.i(TAG, "messageReceived intent sent successfully");
-                }
-            } catch (Exception ex) {
-                ex.printStackTrace();
-                Log.i(TAG, "messageReceived intent failed");
-            }
-
         } else {
             Log.i(TAG, "existing data" + message);
         }
@@ -152,6 +127,24 @@ public class P2PDBApiImpl {
                     result = this.persistP2PSyncMessage(info);
                 }
 
+                db.setTransactionSuccessful();
+            } catch (Exception e) {
+                e.printStackTrace();
+            } finally {
+                db.endTransaction();
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+        return result;
+    }
+
+    public String persistP2PSyncInfo(P2PSyncInfo info) {
+        String result = "";
+        try {
+            db.beginTransaction();
+            try {
+                result = this.persistP2PSyncMessage(info);
                 db.setTransactionSuccessful();
             } catch (Exception e) {
                 e.printStackTrace();
@@ -233,6 +226,53 @@ public class P2PDBApiImpl {
         return syncImmediatelyRequest;
     }
 
+    public List<SyncInfoRequestMessage> buildSyncInfoRequestMessages(Collection<HandShakingInfo> infos) {
+        Map<String, List<SyncInfoItem>> items = new HashMap<String, List<SyncInfoItem>>();
+        Iterator<HandShakingInfo> it = infos.iterator();
+        while (it.hasNext()) {
+            HandShakingInfo info = it.next();
+            String key = info.getFrom();
+            if (items.containsKey(key)) {
+                List<SyncInfoItem> syncItems = items.get(key);
+                syncItems.add(new SyncInfoItem(info.getUserId(), info.getDeviceId(), info.getStartingSequence() == null ? 1L : info.getStartingSequence(), info.getSequence()));
+                items.put(key, syncItems);
+            } else {
+                List<SyncInfoItem> syncItems = new ArrayList<SyncInfoItem>();
+                syncItems.add(new SyncInfoItem(info.getUserId(), info.getDeviceId(), info.getStartingSequence() == null ? 1L : info.getStartingSequence(), info.getSequence()));
+                items.put(info.getFrom(), syncItems);
+            }
+        }
+
+
+        List<SyncInfoRequestMessage> syncInfoRequestMessages = new ArrayList<SyncInfoRequestMessage>();
+
+        Iterator<String> keys = items.keySet().iterator();
+        while (keys.hasNext()) {
+            String mDeviceId = keys.next();
+            List<SyncInfoItem> syncItems = items.get(mDeviceId);
+            SyncInfoRequestMessage m = new SyncInfoRequestMessage(mDeviceId, syncItems);
+            syncInfoRequestMessages.add(m);
+        }
+
+        return syncInfoRequestMessages;
+    }
+
+    public Map<String, HandShakingInfo> handShakingInformationFromCurrentDevice() {
+        Map<String, HandShakingInfo> handShakingInfos = new HashMap<String, HandShakingInfo>();
+        try {
+            P2PLatestInfoByUserAndDevice[] infos = db.p2pSyncDao().getLatestInfoAvailableByUserIdAndDeviceId();
+            for (P2PLatestInfoByUserAndDevice info : infos) {
+                if (info.userId != null && info.deviceId != null) {
+                    HandShakingInfo i = new HandShakingInfo(info.userId, info.deviceId, info.sequence);
+                    i.setFrom(P2PApplication.getCurrentDevice());
+                    handShakingInfos.put(info.userId, new HandShakingInfo(info.userId, info.deviceId, info.sequence));
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, e.getMessage());
+        }
+        return handShakingInfos;
+    }
 
     public String serializeHandShakingMessage(boolean needAcknowlegement) {
         try {
@@ -246,7 +286,7 @@ public class P2PDBApiImpl {
 
             Gson gson = this.registerHandShakingMessageBuilder();
             String reply = needAcknowlegement ? "true" : "false";
-            HandShakingMessage message = new HandShakingMessage(P2PApplication.getLoggedInUser(), "handshaking", reply, handShakingInfos);
+            HandShakingMessage message = new HandShakingMessage(P2PApplication.getCurrentDevice(), "handshaking", reply, handShakingInfos);
             Type handShakingType = new TypeToken<HandShakingMessage>() {
             }.getType();
             String json = gson.toJson(message, handShakingType);
@@ -255,6 +295,47 @@ public class P2PDBApiImpl {
             Log.e(TAG, e.getMessage());
             return null;
         }
+    }
+
+    public SyncInfoRequestMessage buildSyncRequstMessage(String json) {
+        SyncInfoRequestMessage message = deSerializeSyncRequestMessagesFromJson(json);
+        return message;
+    }
+
+    private SyncInfoRequestMessage deSerializeSyncRequestMessagesFromJson(String json) {
+        SyncInfoRequestMessage message = null;
+        try {
+            Gson gson = this.registerSyncRequestMessageBuilder();
+            Type SyncInfoRequestMessageType = new TypeToken<SyncInfoRequestMessage>() {
+            }.getType();
+            message = gson.fromJson(json, SyncInfoRequestMessageType);
+
+        } catch (Exception e) {
+            Log.i(TAG, "deSerializeHandShakingInformationFromJson exception" + e.getMessage());
+        }
+        return message;
+    }
+
+
+    public List<String> serializeSyncRequestMessages(Collection<HandShakingInfo> infos) {
+        List<String> results = new ArrayList<String>();
+        try {
+            Gson gson = this.registerSyncRequestMessageBuilder();
+            Type requestType = new TypeToken<SyncInfoRequestMessage>() {
+            }.getType();
+
+
+            List<SyncInfoRequestMessage> messages = this.buildSyncInfoRequestMessages(infos);
+            Iterator<SyncInfoRequestMessage> mIt = messages.iterator();
+            while (mIt.hasNext()) {
+                SyncInfoRequestMessage requestMessage = mIt.next();
+                String json = gson.toJson(requestMessage, requestType);
+                results.add(json);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, e.getMessage());
+        }
+        return results;
     }
 
     public String serializeProfileMessage(String userId, String deviceId, String contents) {
@@ -305,6 +386,13 @@ public class P2PDBApiImpl {
         return handShakingInfos;
     }
 
+    private Gson registerSyncRequestMessageBuilder() {
+        GsonBuilder gsonBuilder = new GsonBuilder();
+        gsonBuilder.registerTypeAdapter(SyncInfoItem.class, new SyncItemDeserializer());
+        gsonBuilder.registerTypeAdapter(SyncInfoRequestMessage.class, new SyncRequestMessageDeserializer());
+        Gson gson = gsonBuilder.create();
+        return gson;
+    }
 
     private Gson registerHandShakingMessageBuilder() {
         GsonBuilder gsonBuilder = new GsonBuilder();
@@ -364,7 +452,7 @@ public class P2PDBApiImpl {
         return json;
     }
 
-    private List<P2PSyncInfo> deSerializeP2PSyncInfoFromJson(String p2pSyncJson) {
+    public List<P2PSyncInfo> deSerializeP2PSyncInfoFromJson(String p2pSyncJson) {
         Log.i(TAG, "P2P Sync Info received" + p2pSyncJson);
         Gson gson = this.registerP2PSyncInfoBuilder();
         List<P2PSyncInfo> infos = null;
@@ -391,6 +479,16 @@ public class P2PDBApiImpl {
         return message;
     }
 
+
+    public List<String> fetchP2PSyncInfoBySyncRequest(SyncInfoItem i) {
+        List<String> jsons = new ArrayList<String>();
+        List<P2PSyncInfo> results = Arrays.asList(db.p2pSyncDao().fetchByUserAndDeviceBetweenSequences(i.getUserId(), i.getDeviceId(), i.getStartingSequence(), i.getSequence()));
+        for (P2PSyncInfo p: results) {
+            jsons.add(convertSingleP2PSyncInfoToJsonUsingStreaming(p));
+        }
+
+        return jsons;
+    }
 
     public HandShakingMessage deSerializeHandShakingInformationFromJson(String handShakingJson) {
         HandShakingMessage message = null;
@@ -514,6 +612,10 @@ public class P2PDBApiImpl {
 
     public List<P2PUserIdDeviceIdAndMessage> getUsers() {
         return Arrays.asList(db.p2pSyncDao().fetchAllUsers());
+    }
+
+    public List<P2PSyncInfo> getSyncInformationByUserIdAndDeviceId(String userId, String deviceId) {
+        return Arrays.asList(db.p2pSyncDao().getSyncInformationByUserIdAndDeviceId(userId, deviceId));
     }
 
     public List<P2PSyncInfo> getInfoByUserId(String userid) {

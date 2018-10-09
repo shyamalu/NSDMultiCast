@@ -9,6 +9,9 @@ import android.os.CountDownTimer;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.IterableUtils;
+import org.apache.commons.collections4.Predicate;
 import org.chimple.flores.application.NetworkUtil;
 import org.chimple.flores.application.P2PApplication;
 import org.chimple.flores.db.DBSyncManager;
@@ -16,12 +19,14 @@ import org.chimple.flores.db.P2PDBApiImpl;
 import org.chimple.flores.db.entity.HandShakingInfo;
 import org.chimple.flores.db.entity.HandShakingMessage;
 import org.chimple.flores.db.entity.P2PSyncInfo;
+import org.chimple.flores.db.entity.SyncInfoItem;
+import org.chimple.flores.db.entity.SyncInfoMessage;
+import org.chimple.flores.db.entity.SyncInfoRequestMessage;
 
-import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -48,14 +53,13 @@ public class MulticastManager {
     private int multicastPort;
     private P2PDBApiImpl p2PDBApiImpl;
     private DBSyncManager dbSyncManager;
-    private Map<String, HandShakingMessage> handShakingMessages = new HashMap<String, HandShakingMessage>();
-    private Map<String, Date> handShakingMessagesReceivedSoFar = new HashMap<String, Date>();
+    private Map<String, HandShakingMessage> handShakingMessagesInCurrentLoop = new HashMap<String, HandShakingMessage>();
+    private Set<String> allSyncInfosReceived = new HashSet<String>();
 
     public static final String multiCastConnectionChangedEvent = "multicast-connection-changed-event";
 
     private CountDownTimer waitForHandShakingMessagesTimer = null;
-    private static final int WAIT_FOR_HAND_SHAKING_MESSAGES = 2 * 1000; // 2 sec
-    private static final int HAND_SHAKING_TIME_DIFF = 1 * 60 * 1000;
+    private static final int WAIT_FOR_HAND_SHAKING_MESSAGES = 5 * 1000; // 5 sec
 
 
     public static MulticastManager getInstance(Context context) {
@@ -92,10 +96,10 @@ public class MulticastManager {
         if (!isListening) {
             int status = NetworkUtil.getConnectivityStatusString(this.context);
             if (status != NetworkUtil.NETWORK_STATUS_NOT_CONNECTED) {
-                setWifiLockAcquired(true);
-                this.multicastListenerThread = new MulticastListenerThread(this.context, getMulticastIP(), getMulticastPort());
-                multicastListenerThread.start();
-                isListening = true;
+//                setWifiLockAcquired(true);
+//                this.multicastListenerThread = new MulticastListenerThread(this.context, getMulticastIP(), getMulticastPort());
+//                multicastListenerThread.start();
+//                isListening = true;
             }
         }
     }
@@ -190,7 +194,6 @@ public class MulticastManager {
 
     private void startMultiCastOperations() {
         instance.startListening();
-        // after 3 seconds to send initial handshake messages
         instance.sendFindBuddyMessage();
     }
 
@@ -210,7 +213,6 @@ public class MulticastManager {
     private BroadcastReceiver newMessageAddedReceiver = new BroadcastReceiver() {
 
         public void onReceive(Context context, Intent intent) {
-//            sendInitialHandShakingMessage(true);
             P2PSyncInfo info = (P2PSyncInfo) intent.getSerializableExtra(NEW_MESSAGE_ADDED);
             if (info != null) {
                 String syncMessage = p2PDBApiImpl.convertSingleP2PSyncInfoToJsonUsingStreaming(info);
@@ -263,12 +265,17 @@ public class MulticastManager {
         return isSyncInfoMessage;
     }
 
+    private boolean isSyncRequestMessage(String message) {
+        String messageType = "\"message_type\":\"syncInfoRequestMessage\"";
+        return message != null && message.contains(messageType) ? true : false;
+    }
 
-    private void sendInitialHandShakingMessage(boolean needAcknowlegement) {
+
+    private void sendInitialHandShakingMessage(boolean needAck) {
         // construct handshaking message(s)
         // put in queue - TBD
         // send one by one from queue - TBD
-        String serializedHandShakingMessage = instance.p2PDBApiImpl.serializeHandShakingMessage(needAcknowlegement);
+        String serializedHandShakingMessage = instance.p2PDBApiImpl.serializeHandShakingMessage(needAck);
         Log.d(TAG, "sending initial handshaking message: " + serializedHandShakingMessage);
         instance.sendMulticastMessage(serializedHandShakingMessage);
     }
@@ -276,57 +283,177 @@ public class MulticastManager {
     public void processInComingMessage(String message, String fromIP) {
         if (instance.isHandShakingMessage(message)) {
             instance.processInComingHandShakingMessage(message);
+        } else if (instance.isSyncRequestMessage(message)) {
+            List<String> syncInfoMessages = instance.processInComingSyncRequestMessage(message);
+            instance.sendMessages(syncInfoMessages);
         } else if (instance.isSyncInfoMessage(message)) {
-            String result = instance.processInComingSyncInfoMessage(message);
-            instance.notifyUI(result, fromIP);
+            instance.processInComingSyncInfoMessage(message, fromIP);
         }
     }
+
 
     public void addNewMessage(String message) {
         dbSyncManager.addMessage(P2PApplication.getLoggedInUser(), null, "Chat", message);
     }
 
-    private void processInComingHandShakingMessage(String message) {
+    public void processInComingHandShakingMessage(String message) {
 
         Log.d(TAG, "processInComingHandShakingMessage: " + message);
         //parse message and add to all messages
-        boolean hadReplyWithSendingHandShakingInformation = instance.parseHandShakingMessage(message);
+        HandShakingMessage handShakingMessage = instance.parseHandShakingMessage(message);
+        boolean shouldSendAck = shouldSendAckForHandShakingMessage(handShakingMessage);
 
         // send handshaking information if message received "from" first time
-        if (!hadReplyWithSendingHandShakingInformation) {
+        if (shouldSendAck) {
             Log.d(TAG, "replying back with initial hand shaking message");
             sendInitialHandShakingMessage(false);
         }
 
         waitForHandShakingMessagesTimer = new CountDownTimer(WAIT_FOR_HAND_SHAKING_MESSAGES, 1000) {
-
             public void onTick(long millisUntilFinished) {
-
             }
-
 
             public void onFinish() {
                 Log.d(TAG, "waitForHandShakingMessagesTimer finished ... processing sync information ...");
-                List<String> computedSyncMessages = instance.computeSyncInformation();
-                instance.sendSyncMessages(computedSyncMessages);
+                instance.generateSyncInfoPullRequest(instance.getAllHandShakeMessagesInCurrentLoop());
             }
         }.start();
 
     }
 
-    private String processInComingSyncInfoMessage(String message) {
-        return P2PDBApiImpl.getInstance(instance.context).persistP2PSyncInfos(message);
+    public List<String> generateSyncInfoPullRequest(final Map<String, HandShakingMessage> messages) {
+        final Collection<HandShakingInfo> pullSyncInfo = instance.computeSyncInfoRequired(messages);
+        List<String> jsons = p2PDBApiImpl.serializeSyncRequestMessages(pullSyncInfo);
+        instance.sendMessages(jsons);
+        return jsons;
+    }
+
+    private boolean validIncomingSyncMessage(P2PSyncInfo info) {
+        // reject out of order message, send handshaking request
+        // reject duplicate messages if any
+
+        boolean isValid = true;
+        String iKey = info.getDeviceId() + "_" + info.getUserId() + "_" + Long.valueOf(info.getSequence().longValue());
+        String iPreviousKey = info.getDeviceId() + "_" + info.getUserId() + "_" + Long.valueOf(info.getSequence().longValue() - 1);
+
+        // remove duplicates
+        if (allSyncInfosReceived.contains(iKey)) {
+            Log.d(TAG, "Rejecting sync data message as key already found" + iKey);
+            isValid = false;
+        }
+
+        // process out of sync
+        if (info.getSequence().longValue() != 1
+                && !allSyncInfosReceived.contains(iPreviousKey)) {
+            Log.d(TAG, "Rejecting sync data message as out of sequence => previous key not found " + iPreviousKey + " for key:" + iKey);
+            isValid = false;
+            // generate handshaking request
+            sendInitialHandShakingMessage(true);
+        }
+        return isValid;
+    }
+
+    public void processInComingSyncInfoMessage(String message, String fromIP) {
+        Iterator<P2PSyncInfo> infos = p2PDBApiImpl.deSerializeP2PSyncInfoFromJson(message).iterator();
+        while (infos.hasNext()) {
+            P2PSyncInfo info = infos.next();
+            boolean isValidMessage = instance.validIncomingSyncMessage(info);
+            if (!isValidMessage) {
+                infos.remove();
+                return;
+            }
+            String key = info.getDeviceId() + "_" + info.getUserId() + "_" + Long.valueOf(info.getSequence().longValue());
+            Log.d(TAG, "processing sync data message for key:" + key);
+            String rMessage = p2PDBApiImpl.persistP2PSyncInfo(info);
+            if(rMessage != null) {
+                allSyncInfosReceived.add(info.getDeviceId() + "_" + info.getUserId() + "_" + Long.valueOf(info.getSequence().longValue()));
+                Log.d(TAG, "notifying UI for data message for key:" + key + " with message:" + rMessage);
+                instance.notifyUI(rMessage, fromIP);
+            }
+        }
+    }
+
+    public List<String> processInComingSyncRequestMessage(String message) {
+        List<String> jsonRequests = new ArrayList<String>();
+        SyncInfoRequestMessage request = p2PDBApiImpl.buildSyncRequstMessage(message);
+        // process only if matching current device id
+        if (request != null && request.getmDeviceId().equalsIgnoreCase(P2PApplication.getCurrentDevice())) {
+            List<SyncInfoItem> items = request.getItems();
+            for (SyncInfoItem a : items) {
+                jsonRequests.addAll(p2PDBApiImpl.fetchP2PSyncInfoBySyncRequest(a));
+            }
+        }
+
+        return jsonRequests;
     }
 
     private void reset() {
-        instance.handShakingMessages = null;
-        instance.handShakingMessages = new HashMap<String, HandShakingMessage>();
+        instance.handShakingMessagesInCurrentLoop = null;
+        instance.handShakingMessagesInCurrentLoop = new HashMap<String, HandShakingMessage>();
+    }
+
+    private Set<HandShakingInfo> sortHandShakingInfos(final Map<String, HandShakingMessage> messages) {
+        final Set<HandShakingInfo> allHandShakingInfos = new TreeSet<HandShakingInfo>(new Comparator<HandShakingInfo>() {
+            @Override
+            public int compare(HandShakingInfo o1, HandShakingInfo o2) {
+                if (o1.getDeviceId().equalsIgnoreCase(o2.getDeviceId())) {
+                    if (o1.getSequence().longValue() > o2.getSequence().longValue()) {
+                        return 1;
+                    } else {
+                        return -1;
+                    }
+                }
+                return o1.getDeviceId().compareToIgnoreCase(o2.getDeviceId());
+            }
+        });
+
+        Iterator<Map.Entry<String, HandShakingMessage>> entries = messages.entrySet().iterator();
+        while (entries.hasNext()) {
+            Map.Entry<String, HandShakingMessage> entry = entries.next();
+            Iterator<HandShakingInfo> it = entry.getValue().getInfos().iterator();
+            while (it.hasNext()) {
+                HandShakingInfo i = it.next();
+                i.setFrom(entry.getKey());
+            }
+
+            allHandShakingInfos.addAll(entry.getValue().getInfos());
+        }
+        return allHandShakingInfos;
+    }
+
+    private Collection<HandShakingInfo> computeSyncInfoRequired(final Map<String, HandShakingMessage> messages) {
+        instance.reset();
+        // sort by device id and sequence desc order
+        final Set<HandShakingInfo> allHandShakingInfos = sortHandShakingInfos(messages);
+        Iterator<HandShakingInfo> itReceived = allHandShakingInfos.iterator();
+        final Map<String, HandShakingInfo> uniqueHandShakeInfosReceived = new HashMap<String, HandShakingInfo>();
+        while (itReceived.hasNext()) {
+            HandShakingInfo info = itReceived.next();
+            uniqueHandShakeInfosReceived.put(info.getUserId(), info);
+        }
+
+        final Map<String, HandShakingInfo> myHandShakingMessages = p2PDBApiImpl.handShakingInformationFromCurrentDevice();
+
+        Iterator<String> keys = uniqueHandShakeInfosReceived.keySet().iterator();
+        while (keys.hasNext()) {
+            String userKey = keys.next();
+            if (myHandShakingMessages.keySet().contains(userKey)) {
+                HandShakingInfo infoFromOtherDevice = uniqueHandShakeInfosReceived.get(userKey);
+                HandShakingInfo infoFromMyDevice = myHandShakingMessages.get(userKey);
+                if (infoFromMyDevice.getSequence() > infoFromOtherDevice.getSequence()) {
+                    uniqueHandShakeInfosReceived.remove(userKey);
+                } else {
+                    infoFromOtherDevice.setStartingSequence(infoFromMyDevice.getSequence().longValue() + 1);
+                }
+            }
+        }
+        return uniqueHandShakeInfosReceived.values();
     }
 
     public List<String> computeSyncInformation() {
         List<String> computedMessages = new ArrayList<String>();
 
-        final Map<String, HandShakingMessage> messages = Collections.unmodifiableMap(handShakingMessages);
+        final Map<String, HandShakingMessage> messages = Collections.unmodifiableMap(handShakingMessagesInCurrentLoop);
         instance.reset();
 
         final Set<HandShakingInfo> allHandShakingInfos = new TreeSet<HandShakingInfo>(new Comparator<HandShakingInfo>() {
@@ -377,7 +504,7 @@ public class MulticastManager {
         return computedMessages;
     }
 
-    private void sendSyncMessages(List<String> computedMessages) {
+    private void sendMessages(List<String> computedMessages) {
         Iterator<String> it = computedMessages.iterator();
         while (it.hasNext()) {
             String p = it.next();
@@ -385,39 +512,41 @@ public class MulticastManager {
         }
     }
 
-    private boolean hadRepliedToHandShakingMessage(HandShakingMessage handShakingMessage) {
-        boolean alreadyReplied = false;
-
-        if (instance.handShakingMessagesReceivedSoFar.containsKey(handShakingMessage.getFrom())) {
-            Date whenLastReceived = (Date) instance.handShakingMessagesReceivedSoFar.get(handShakingMessage.getFrom());
-            boolean needReply = handShakingMessage.getReply().equalsIgnoreCase("true");
-            long diff = System.currentTimeMillis() - HAND_SHAKING_TIME_DIFF;
-            //if (whenLastReceived.getTime() < diff || needReply) {
-            if (needReply) {
-                Log.d(TAG, "hand shaking message received from " + handShakingMessage.getFrom() + " with need to reply");
-                alreadyReplied = false;
-            } else {
-                alreadyReplied = true;
-            }
-        }
-        Log.d(TAG, "hadRepliedToHandShakingMessage: " + handShakingMessage.getFrom() + " alreadyReplied:" + alreadyReplied);
-        return alreadyReplied;
+    private boolean shouldSendAckForHandShakingMessage(HandShakingMessage handShakingMessage) {
+        boolean sendAck = handShakingMessage.getReply().equalsIgnoreCase("true");
+        Log.d(TAG, "shouldSendAckForHandShaking: " + handShakingMessage.getFrom() + " sendAck:" + sendAck);
+        return sendAck;
     }
 
-    public boolean parseHandShakingMessage(String message) {
+
+    public HandShakingMessage parseHandShakingMessage(String message) {
         boolean repliedToHandShakingMessage = false;
         HandShakingMessage handShakingMessage = p2PDBApiImpl.deSerializeHandShakingInformationFromJson(message);
+
         if (handShakingMessage != null) {
-            repliedToHandShakingMessage = instance.hadRepliedToHandShakingMessage(handShakingMessage);
-            Log.d(TAG, "adding handshaking message from user:" + handShakingMessage.getFrom());
-            instance.handShakingMessages.put(handShakingMessage.getFrom(), handShakingMessage);
-            instance.handShakingMessagesReceivedSoFar.put(handShakingMessage.getFrom(), new Date());
+            instance.handShakingMessagesInCurrentLoop.put(handShakingMessage.getFrom(), handShakingMessage);
+
+//            if (handShakingMessage.getInfos() != null) {
+//                Iterator<HandShakingInfo> infos = handShakingMessage.getInfos().iterator();
+//                while (infos.hasNext()) {
+//                    HandShakingInfo h = (HandShakingInfo) infos.next();
+//                    instance.allHandShakingMessagesCached.put(handShakingMessage.getFrom(), h.getSequence());
+//                }
+//            }
         }
-        return repliedToHandShakingMessage;
+        return handShakingMessage;
+    }
+
+    public Set<String> getAllSyncInfosReceived() {
+        return allSyncInfosReceived;
     }
 
     public void sendFindBuddyMessage() {
         instance.sendInitialHandShakingMessage(true);
+    }
+
+    public Map<String, HandShakingMessage> getAllHandShakeMessagesInCurrentLoop() {
+        return Collections.unmodifiableMap(handShakingMessagesInCurrentLoop);
     }
 
 }

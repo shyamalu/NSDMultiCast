@@ -96,10 +96,10 @@ public class MulticastManager {
         if (!isListening) {
             int status = NetworkUtil.getConnectivityStatusString(this.context);
             if (status != NetworkUtil.NETWORK_STATUS_NOT_CONNECTED) {
-//                setWifiLockAcquired(true);
-//                this.multicastListenerThread = new MulticastListenerThread(this.context, getMulticastIP(), getMulticastPort());
-//                multicastListenerThread.start();
-//                isListening = true;
+                setWifiLockAcquired(true);
+                this.multicastListenerThread = new MulticastListenerThread(this.context, getMulticastIP(), getMulticastPort());
+                multicastListenerThread.start();
+                isListening = true;
             }
         }
     }

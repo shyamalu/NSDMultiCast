@@ -454,30 +454,48 @@ public class MulticastManager {
 
     private Collection<HandShakingInfo> computeSyncInfoRequired(final Map<String, HandShakingMessage> messages) {
         // sort by device id and sequence desc order
-        final Set<HandShakingInfo> allHandShakingInfos = sortHandShakingInfos(messages);
-        Iterator<HandShakingInfo> itReceived = allHandShakingInfos.iterator();
-        final Map<String, HandShakingInfo> uniqueHandShakeInfosReceived = new ConcurrentHashMap<String, HandShakingInfo>();
-        while (itReceived.hasNext()) {
-            HandShakingInfo info = itReceived.next();
-            uniqueHandShakeInfosReceived.put(info.getUserId(), info);
-        }
+        synchronized (MulticastManager.class) {
+            final Set<HandShakingInfo> allHandShakingInfos = sortHandShakingInfos(messages);
+            Iterator<HandShakingInfo> itReceived = allHandShakingInfos.iterator();
+            final Map<String, HandShakingInfo> uniqueHandShakeInfosReceived = new ConcurrentHashMap<String, HandShakingInfo>();
+            while (itReceived.hasNext()) {
+                HandShakingInfo info = itReceived.next();
+                uniqueHandShakeInfosReceived.put(info.getUserId(), info);
+            }
 
-        final Map<String, HandShakingInfo> myHandShakingMessages = p2PDBApiImpl.handShakingInformationFromCurrentDevice();
+            final Map<String, HandShakingInfo> myHandShakingMessages = p2PDBApiImpl.handShakingInformationFromCurrentDevice();
 
-        Iterator<String> keys = uniqueHandShakeInfosReceived.keySet().iterator();
-        while (keys.hasNext()) {
-            String userKey = keys.next();
-            if (myHandShakingMessages.keySet().contains(userKey)) {
-                HandShakingInfo infoFromOtherDevice = uniqueHandShakeInfosReceived.get(userKey);
-                HandShakingInfo infoFromMyDevice = myHandShakingMessages.get(userKey);
-                if (infoFromMyDevice.getSequence() > infoFromOtherDevice.getSequence()) {
-                    uniqueHandShakeInfosReceived.remove(userKey);
-                } else {
-                    infoFromOtherDevice.setStartingSequence(infoFromMyDevice.getSequence().longValue() + 1);
+            Iterator<String> keys = uniqueHandShakeInfosReceived.keySet().iterator();
+            while (keys.hasNext()) {
+                String userKey = keys.next();
+                Log.d(TAG, "computeSyncInfoRequired user key:" + userKey);
+                if (myHandShakingMessages.keySet().contains(userKey)) {
+                    HandShakingInfo infoFromOtherDevice = uniqueHandShakeInfosReceived.get(userKey);
+                    HandShakingInfo infoFromMyDevice = myHandShakingMessages.get(userKey);
+                    if (infoFromMyDevice.getSequence() >= infoFromOtherDevice.getSequence()) {
+                        Log.d(TAG, "removing from uniqueHandShakeInfosReceived for key:" + userKey + " as infoFromMyDevice.getSequence()" + infoFromMyDevice.getSequence() + " infoFromOtherDevice.getSequence()" + infoFromOtherDevice.getSequence());
+                        uniqueHandShakeInfosReceived.remove(userKey);
+                    } else {
+                        Log.d(TAG, "uniqueHandShakeInfosReceived for key:" + userKey + " as infoFromOtherDevice.setStartingSequence" + infoFromMyDevice.getSequence().longValue());
+                        infoFromOtherDevice.setStartingSequence(infoFromMyDevice.getSequence().longValue() + 1);
+                    }
                 }
             }
+
+
+            List<HandShakingInfo> valuesToSend = new ArrayList<HandShakingInfo>();
+
+            Collection<HandShakingInfo> values = uniqueHandShakeInfosReceived.values();
+            Iterator itValues = values.iterator();
+            if (itValues.hasNext()) {
+                HandShakingInfo t = (HandShakingInfo) itValues.next();
+                Log.d(TAG, "validating : " + t.getUserId() + " " + t.getDeviceId() + " " + t.getStartingSequence() + " " + t.getSequence());
+                if (t.getStartingSequence().longValue() <= t.getSequence().longValue()) {
+                    valuesToSend.add(t);
+                }
+            }
+            return valuesToSend;
         }
-        return uniqueHandShakeInfosReceived.values();
     }
 
     public List<String> computeSyncInformation() {

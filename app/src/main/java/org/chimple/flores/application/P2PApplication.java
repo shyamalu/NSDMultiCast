@@ -60,8 +60,8 @@ public class P2PApplication extends Application {
     private void createShardProfilePreferences() {
         SharedPreferences pref = this.getContext().getSharedPreferences(SHARED_PREF, 0); // 0 - for private mode
         SharedPreferences.Editor editor = pref.edit();
-        editor.putString("USER_ID", "A");
-        editor.putString("DEVICE_ID", "A-device");
+        editor.putString("USER_ID", "B");
+        editor.putString("DEVICE_ID", "B-device");
         editor.commit(); // commit changes
     }
 

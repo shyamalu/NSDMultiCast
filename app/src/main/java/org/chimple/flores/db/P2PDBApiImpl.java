@@ -262,6 +262,7 @@ public class P2PDBApiImpl {
                 if (info.userId != null && info.deviceId != null) {
                     HandShakingInfo i = new HandShakingInfo(info.userId, info.deviceId, info.sequence);
                     i.setFrom(P2PApplication.getCurrentDevice());
+                    Log.d(TAG, "handShakingInformationFromCurrentDevice: " + info.userId + " " + info.deviceId + " " + info.sequence);
                     handShakingInfos.put(info.userId, new HandShakingInfo(info.userId, info.deviceId, info.sequence));
                 }
             }

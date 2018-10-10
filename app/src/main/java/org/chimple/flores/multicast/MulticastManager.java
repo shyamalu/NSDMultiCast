@@ -490,7 +490,10 @@ public class MulticastManager {
             if (itValues.hasNext()) {
                 HandShakingInfo t = (HandShakingInfo) itValues.next();
                 Log.d(TAG, "validating : " + t.getUserId() + " " + t.getDeviceId() + " " + t.getStartingSequence() + " " + t.getSequence());
-                if (t.getStartingSequence().longValue() <= t.getSequence().longValue()) {
+                if(t.getStartingSequence() == null) {
+                    valuesToSend.add(t);
+                }
+                if (t.getStartingSequence() != null && t.getStartingSequence().longValue() <= t.getSequence().longValue()) {
                     valuesToSend.add(t);
                 }
             }

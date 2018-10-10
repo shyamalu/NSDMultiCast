@@ -285,9 +285,7 @@ public class MulticastManager {
             instance.processInComingHandShakingMessage(message);
         } else if (instance.isSyncRequestMessage(message)) {
             List<String> syncInfoMessages = instance.processInComingSyncRequestMessage(message);
-            if (syncInfoMessages != null && syncInfoMessages.size() > 0) {
-                instance.sendMessages(syncInfoMessages);
-            }
+            instance.sendMessages(syncInfoMessages);
         } else if (instance.isSyncInfoMessage(message)) {
             instance.processInComingSyncInfoMessage(message, fromIP);
         }
@@ -357,16 +355,17 @@ public class MulticastManager {
         if (allSyncInfosReceived.contains(iKey)) {
             Log.d(TAG, "Rejecting sync data message as key already found" + iKey);
             isValid = false;
-        }
-
-        // process out of sync
-        if (info.getSequence().longValue() != 1
+        } else if (info.getSequence().longValue() != 1
                 && !allSyncInfosReceived.contains(iPreviousKey)) {
             Log.d(TAG, "Rejecting sync data message as out of sequence => previous key not found " + iPreviousKey + " for key:" + iKey);
             isValid = false;
             // generate handshaking request
             Log.d(TAG, "validIncomingSyncMessage -> out of order -> sendInitialHandShakingMessage");
             sendInitialHandShakingMessage(true);
+        }
+
+        if (isValid) {
+            allSyncInfosReceived.add(iKey);
         }
         return isValid;
     }
@@ -378,17 +377,24 @@ public class MulticastManager {
             P2PSyncInfo info = infos.next();
             boolean isValidMessage = instance.validIncomingSyncMessage(info);
             if (!isValidMessage) {
+                instance.notifyUI(info.message + " ---------> out of order or duplicate - rejected ", fromIP);
                 infos.remove();
                 return;
             }
-            String key = info.getDeviceId() + "_" + info.getUserId() + "_" + Long.valueOf(info.getSequence().longValue());
-            Log.d(TAG, "processing sync data message for key:" + key);
-            String rMessage = p2PDBApiImpl.persistP2PSyncInfo(info);
-            if (rMessage != null) {
-                allSyncInfosReceived.add(info.getDeviceId() + "_" + info.getUserId() + "_" + Long.valueOf(info.getSequence().longValue()));
-                Log.d(TAG, "notifying UI for data message for key:" + key + " with message:" + rMessage);
-                instance.notifyUI(rMessage, fromIP);
+            if (isValidMessage) {
+                String key = info.getDeviceId() + "_" + info.getUserId() + "_" + Long.valueOf(info.getSequence().longValue());
+                Log.d(TAG, "processing sync data message for key:" + key + " and message:" + info.message);
+                String rMessage = p2PDBApiImpl.persistP2PSyncInfo(info);
+                if (rMessage != null) {
+                    allSyncInfosReceived.add(info.getDeviceId() + "_" + info.getUserId() + "_" + Long.valueOf(info.getSequence().longValue()));
+                    Log.d(TAG, "notifying UI for data message for key:" + key + " with message:" + rMessage);
+                    instance.notifyUI(rMessage, fromIP);
+                }
+            } else {
+                infos.remove();
+                return;
             }
+
         }
     }
 
@@ -521,10 +527,12 @@ public class MulticastManager {
     }
 
     private void sendMessages(List<String> computedMessages) {
-        Iterator<String> it = computedMessages.iterator();
-        while (it.hasNext()) {
-            String p = it.next();
-            instance.sendMulticastMessage(p);
+        if (computedMessages != null && computedMessages.size() > 0) {
+            Iterator<String> it = computedMessages.iterator();
+            while (it.hasNext()) {
+                String p = it.next();
+                instance.sendMulticastMessage(p);
+            }
         }
     }
 

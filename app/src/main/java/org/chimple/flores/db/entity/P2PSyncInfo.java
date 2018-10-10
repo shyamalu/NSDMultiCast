@@ -161,6 +161,16 @@ public class P2PSyncInfo implements Serializable {
     public Long getStep() {
         return step;
     }
+
+    public String getSender() {
+        return sender;
+    }
+
+    public void setSender(String sender) {
+        this.sender = sender;
+    }
+
+    private String sender;
 }
 
 

@@ -24,9 +24,14 @@ public class SyncInfoMessageDeserializer implements JsonDeserializer<SyncInfoMes
             messageType = jsonMessageType.getAsString();
         }
 
+        final JsonElement jsonSender = jsonObject.get("sender");
+        String sender = "";
+        if (jsonSender != null) {
+            sender = jsonSender.getAsString();
+        }
 
         P2PSyncInfo[] infos = context.deserialize(jsonObject.get("infos"), P2PSyncInfo[].class);
-        final SyncInfoMessage message = new SyncInfoMessage(messageType, new ArrayList(Arrays.asList(infos)));
+        final SyncInfoMessage message = new SyncInfoMessage(messageType, sender, new ArrayList(Arrays.asList(infos)));
         return message;
     }
 }

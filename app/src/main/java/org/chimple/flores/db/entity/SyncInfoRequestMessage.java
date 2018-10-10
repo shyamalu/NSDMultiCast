@@ -23,14 +23,20 @@ public class SyncInfoRequestMessage {
     String mDeviceId;
 
     @Expose(serialize = true, deserialize = true)
+    @SerializedName("sender")
+    String sender;
+
+
+    @Expose(serialize = true, deserialize = true)
     @SerializedName("items")
     List<SyncInfoItem> items;
 
 
-    public SyncInfoRequestMessage(String mDeviceId, List<SyncInfoItem> items) {
+    public SyncInfoRequestMessage(String sender, String mDeviceId, List<SyncInfoItem> items) {
         this.messageType = MESSAGE_TYPE;
         this.mDeviceId = mDeviceId;
         this.items = items;
+        this.sender = sender;
     }
 
     public List<SyncInfoItem> getItems() {
@@ -40,6 +46,10 @@ public class SyncInfoRequestMessage {
     public String getMessageType() {
 
         return messageType;
+    }
+
+    public String getSender() {
+        return sender;
     }
 
     public String getmDeviceId() {

@@ -24,15 +24,20 @@ public class SyncRequestMessageDeserializer implements JsonDeserializer<SyncInfo
             messageType = jsonMessageType.getAsString();
         }
 
-        final JsonElement jsonFrom = jsonObject.get("md");
-        String from = "";
-        if (jsonFrom != null) {
-            from = jsonFrom.getAsString();
+        final JsonElement jsonMd = jsonObject.get("md");
+        String md = "";
+        if (jsonMd != null) {
+            md = jsonMd.getAsString();
         }
 
+        final JsonElement jsonSender = jsonObject.get("sender");
+        String sender = "";
+        if (jsonSender != null) {
+            sender = jsonSender.getAsString();
+        }
 
         SyncInfoItem[] infos = context.deserialize(jsonObject.get("items"), SyncInfoItem[].class);
-        final SyncInfoRequestMessage message = new SyncInfoRequestMessage(from, new ArrayList(Arrays.asList(infos)));
+        final SyncInfoRequestMessage message = new SyncInfoRequestMessage(sender, md, new ArrayList(Arrays.asList(infos)));
         return message;
     }
 }

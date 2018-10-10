@@ -19,8 +19,8 @@ public class P2PApplication extends Application {
     public static final String messageEvent = "message-event";
     public static final String uiMessageEvent = "ui-message-event";
     public static final String newMessageAddedOnDevice = "new-message-added-event";
-    public static final String MULTICAST_IP_ADDRESS = "230.0.0.0";
-    public static final String MULTICAST_IP_PORT = "4446";
+    public static final String MULTICAST_IP_ADDRESS = "233.0.0.0";
+    public static final String MULTICAST_IP_PORT = "4447";
 
 
     private static final String TAG = P2PApplication.class.getName();
@@ -60,8 +60,8 @@ public class P2PApplication extends Application {
     private void createShardProfilePreferences() {
         SharedPreferences pref = this.getContext().getSharedPreferences(SHARED_PREF, 0); // 0 - for private mode
         SharedPreferences.Editor editor = pref.edit();
-        editor.putString("USER_ID", UUID.randomUUID().toString());
-        editor.putString("DEVICE_ID", UUID.randomUUID().toString());
+        editor.putString("USER_ID", "A");
+        editor.putString("DEVICE_ID", "A-device");
         editor.commit(); // commit changes
     }
 

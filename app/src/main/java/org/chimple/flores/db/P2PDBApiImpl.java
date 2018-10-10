@@ -20,9 +20,6 @@ import org.apache.commons.collections4.Closure;
 import org.apache.commons.collections4.IteratorUtils;
 import org.apache.commons.lang3.StringUtils;
 
-import java.io.ByteArrayOutputStream;
-import java.io.OutputStreamWriter;
-import java.io.File;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -250,7 +247,7 @@ public class P2PDBApiImpl {
         while (keys.hasNext()) {
             String mDeviceId = keys.next();
             List<SyncInfoItem> syncItems = items.get(mDeviceId);
-            SyncInfoRequestMessage m = new SyncInfoRequestMessage(mDeviceId, syncItems);
+            SyncInfoRequestMessage m = new SyncInfoRequestMessage(P2PApplication.getCurrentDevice(), mDeviceId, syncItems);
             syncInfoRequestMessages.add(m);
         }
 
@@ -425,7 +422,7 @@ public class P2PDBApiImpl {
             p2PSyncInfos.add(syncInfo);
 
             Gson gson = this.registerP2PSyncInfoBuilder();
-            SyncInfoMessage message = new SyncInfoMessage("syncInfoMessage", p2PSyncInfos);
+            SyncInfoMessage message = new SyncInfoMessage("syncInfoMessage", P2PApplication.getCurrentDevice(), p2PSyncInfos);
             Type syncInfoMessageType = new TypeToken<SyncInfoMessage>() {
             }.getType();
             String json = gson.toJson(message, syncInfoMessageType);
@@ -441,7 +438,7 @@ public class P2PDBApiImpl {
         String json = "";
         try {
             Gson gson = this.registerP2PSyncInfoBuilder();
-            SyncInfoMessage message = new SyncInfoMessage("syncInfoMessage", p2PSyncInfos);
+            SyncInfoMessage message = new SyncInfoMessage("syncInfoMessage", P2PApplication.getCurrentDevice(), p2PSyncInfos);
             Type syncInfoMessageType = new TypeToken<SyncInfoMessage>() {
             }.getType();
             json = gson.toJson(message, syncInfoMessageType);
@@ -461,6 +458,9 @@ public class P2PDBApiImpl {
         SyncInfoMessage message = gson.fromJson(p2pSyncJson, SyncInfoMessageType);
         if (message != null) {
             infos = message.getInfos();
+            for (P2PSyncInfo s: infos) {
+                s.setSender(message.getSender());
+            }
         }
 
         return infos;
@@ -483,7 +483,7 @@ public class P2PDBApiImpl {
     public List<String> fetchP2PSyncInfoBySyncRequest(SyncInfoItem i) {
         List<String> jsons = new ArrayList<String>();
         List<P2PSyncInfo> results = Arrays.asList(db.p2pSyncDao().fetchByUserAndDeviceBetweenSequences(i.getUserId(), i.getDeviceId(), i.getStartingSequence(), i.getSequence()));
-        for (P2PSyncInfo p: results) {
+        for (P2PSyncInfo p : results) {
             jsons.add(convertSingleP2PSyncInfoToJsonUsingStreaming(p));
         }
 

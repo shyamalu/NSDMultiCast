@@ -116,6 +116,7 @@ public class MulticastManager {
     public void sendMulticastMessage(String message) {
         if (this.isListening) {
             Log.d(TAG, "sending message: " + message);
+            notifyUI("multicasting message", " ------> ");
             this.multicastSenderThread = new MulticastSenderThread(this.context, getMulticastIP(), getMulticastPort(), message);
             multicastSenderThread.start();
         }
@@ -206,8 +207,10 @@ public class MulticastManager {
             synchronized (MulticastManager.class) {
                 boolean isConnected = intent.getBooleanExtra("isConnected", false);
                 if (!isConnected) {
+                    notifyUI("stopping multicast operations", " ------> ");
                     instance.stopMultiCastOperations();
                 } else {
+                    notifyUI("starting multicast operations", " ------> ");
                     instance.startMultiCastOperations();
                 }
             }
@@ -299,6 +302,7 @@ public class MulticastManager {
     public void processInComingHandShakingMessage(String message) {
 
         Log.d(TAG, "processInComingHandShakingMessage: " + message);
+        notifyUI("handshaking message received", " ------> ");
         //parse message and add to all messages
         HandShakingMessage handShakingMessage = instance.parseHandShakingMessage(message);
         boolean shouldSendAck = shouldSendAckForHandShakingMessage(handShakingMessage);
@@ -306,6 +310,7 @@ public class MulticastManager {
         // send handshaking information if message received "from" first time
         if (shouldSendAck) {
             Log.d(TAG, "replying back with initial hand shaking message with needAck => false");
+            notifyUI("handshaking message sent with ack false", " ------> ");
             sendInitialHandShakingMessage(false);
         }
 
@@ -336,6 +341,7 @@ public class MulticastManager {
         List<String> jsons = new ArrayList<String>();
         final Collection<HandShakingInfo> pullSyncInfo = instance.computeSyncInfoRequired(messages);
         Log.d(TAG, "generateSyncInfoPullRequest -> computeSyncInfoRequired ->" + pullSyncInfo.size());
+        notifyUI("generateSyncInfoPullRequest -> computeSyncInfoRequired ->" + pullSyncInfo.size(), " ------> ");
         if (pullSyncInfo != null) {
             jsons = p2PDBApiImpl.serializeSyncRequestMessages(pullSyncInfo);
             instance.sendMessages(jsons);
@@ -377,7 +383,7 @@ public class MulticastManager {
             P2PSyncInfo info = infos.next();
             boolean isValidMessage = instance.validIncomingSyncMessage(info);
             if (!isValidMessage) {
-                instance.notifyUI(info.message + " ---------> out of order or duplicate - rejected ", fromIP);
+                notifyUI(info.message + " ---------> out of order or duplicate - rejected ", info.getSender());
                 infos.remove();
                 return;
             }
@@ -388,7 +394,7 @@ public class MulticastManager {
                 if (rMessage != null) {
                     allSyncInfosReceived.add(info.getDeviceId() + "_" + info.getUserId() + "_" + Long.valueOf(info.getSequence().longValue()));
                     Log.d(TAG, "notifying UI for data message for key:" + key + " with message:" + rMessage);
-                    instance.notifyUI(rMessage, fromIP);
+                    notifyUI(rMessage, info.getSender());
                 }
             } else {
                 infos.remove();
@@ -405,6 +411,7 @@ public class MulticastManager {
         // process only if matching current device id
         if (request != null && request.getmDeviceId().equalsIgnoreCase(P2PApplication.getCurrentDevice())) {
             Log.d(TAG, "processInComingSyncRequestMessage => device id matches with: " + P2PApplication.getCurrentDevice());
+            notifyUI("sync request message received", " ------> ");
             List<SyncInfoItem> items = request.getItems();
             for (SyncInfoItem a : items) {
                 Log.d(TAG, "processInComingSyncRequestMessage => adding to jsonRequest for sync messages");

@@ -10,22 +10,18 @@ public class SyncInfoMessage {
     @SerializedName("message_type")
     String messageType;
 
-
-    public String getMessageType() {
-        return messageType;
-    }
-
-    public List<P2PSyncInfo> getInfos() {
-        return infos;
-    }
-
     @Expose(serialize = true, deserialize = true)
     @SerializedName("infos")
     List<P2PSyncInfo> infos;
 
-    public SyncInfoMessage(String messageType, List<P2PSyncInfo> infos) {
+    @Expose(serialize = true, deserialize = true)
+    @SerializedName("sender")
+    String sender;
+
+    public SyncInfoMessage(String messageType, String sender, List<P2PSyncInfo> infos) {
         this.messageType = messageType;
         this.infos = infos;
+        this.sender = sender;
     }
 
 
@@ -46,5 +42,21 @@ public class SyncInfoMessage {
         int hashno = 7;
         hashno = 13 * hashno + (messageType == null ? 0 : messageType.hashCode()) + (infos == null ? 0 : infos.hashCode());
         return hashno;
+    }
+
+    public String getMessageType() {
+        return messageType;
+    }
+
+    public List<P2PSyncInfo> getInfos() {
+        return infos;
+    }
+
+    public String getSender() {
+        return sender;
+    }
+
+    public void setSender(String sender) {
+        this.sender = sender;
     }
 }

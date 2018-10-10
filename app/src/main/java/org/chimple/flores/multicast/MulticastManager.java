@@ -93,13 +93,10 @@ public class MulticastManager {
 
     public void startListening() {
         if (!isListening) {
-            int status = NetworkUtil.getConnectivityStatusString(this.context);
-            if (status != NetworkUtil.NETWORK_STATUS_NOT_CONNECTED) {
-                setWifiLockAcquired(true);
-                this.multicastListenerThread = new MulticastListenerThread(this.context, getMulticastIP(), getMulticastPort());
-                multicastListenerThread.start();
-                isListening = true;
-            }
+            setWifiLockAcquired(true);
+            this.multicastListenerThread = new MulticastListenerThread(this.context, getMulticastIP(), getMulticastPort());
+            multicastListenerThread.start();
+            isListening = true;
         }
     }
 
@@ -109,6 +106,7 @@ public class MulticastManager {
 
     public void stopListening() {
         if (isListening) {
+            Log.d(TAG, "stopListening called");
             isListening = false;
             stopThreads();
             setWifiLockAcquired(false);
@@ -124,10 +122,14 @@ public class MulticastManager {
     }
 
     private void stopThreads() {
-        if (this.multicastListenerThread != null)
+        if (this.multicastListenerThread != null) {
             this.multicastListenerThread.stopRunning();
-        if (this.multicastSenderThread != null)
+            this.multicastListenerThread.cleanUp();
+        }
+        if (this.multicastSenderThread != null) {
             this.multicastSenderThread.interrupt();
+            this.multicastSenderThread.cleanUp();
+        }
     }
 
     private void setWifiLockAcquired(boolean acquired) {
@@ -188,6 +190,7 @@ public class MulticastManager {
 
 
     private void stopMultiCastOperations() {
+
         instance.stopListening();
     }
 
@@ -200,11 +203,13 @@ public class MulticastManager {
     private BroadcastReceiver netWorkChangerReceiver = new BroadcastReceiver() {
 
         public void onReceive(Context context, Intent intent) {
-            boolean isConnected = intent.getBooleanExtra("isConnected", false);
-            if (!isConnected) {
-                instance.stopMultiCastOperations();
-            } else {
-                instance.startMultiCastOperations();
+            synchronized (MulticastManager.class) {
+                boolean isConnected = intent.getBooleanExtra("isConnected", false);
+                if (!isConnected) {
+                    instance.stopMultiCastOperations();
+                } else {
+                    instance.startMultiCastOperations();
+                }
             }
         }
     };
@@ -280,7 +285,7 @@ public class MulticastManager {
             instance.processInComingHandShakingMessage(message);
         } else if (instance.isSyncRequestMessage(message)) {
             List<String> syncInfoMessages = instance.processInComingSyncRequestMessage(message);
-            if(syncInfoMessages != null && syncInfoMessages.size() > 0) {
+            if (syncInfoMessages != null && syncInfoMessages.size() > 0) {
                 instance.sendMessages(syncInfoMessages);
             }
         } else if (instance.isSyncInfoMessage(message)) {
@@ -306,7 +311,7 @@ public class MulticastManager {
             sendInitialHandShakingMessage(false);
         }
 
-        synchronized (instance) {
+        synchronized (MulticastManager.class) {
             if (waitForHandShakingMessagesTimer == null) {
                 Log.d(TAG, "waitForHandShakingMessagesTimer => created to process Incoming handshaking requests");
                 waitForHandShakingMessagesTimer = new CountDownTimer(WAIT_FOR_HAND_SHAKING_MESSAGES, 1000) {
@@ -333,7 +338,7 @@ public class MulticastManager {
         List<String> jsons = new ArrayList<String>();
         final Collection<HandShakingInfo> pullSyncInfo = instance.computeSyncInfoRequired(messages);
         Log.d(TAG, "generateSyncInfoPullRequest -> computeSyncInfoRequired ->" + pullSyncInfo.size());
-        if(pullSyncInfo != null) {
+        if (pullSyncInfo != null) {
             jsons = p2PDBApiImpl.serializeSyncRequestMessages(pullSyncInfo);
             instance.sendMessages(jsons);
         }
@@ -548,8 +553,8 @@ public class MulticastManager {
     }
 
     public Map<String, HandShakingMessage> getAllHandShakeMessagesInCurrentLoop() {
-        synchronized (instance) {
-            Map<String, HandShakingMessage> messagesTillNow =  Collections.unmodifiableMap(handShakingMessagesInCurrentLoop);
+        synchronized (MulticastManager.class) {
+            Map<String, HandShakingMessage> messagesTillNow = Collections.unmodifiableMap(handShakingMessagesInCurrentLoop);
             CollectionUtils.subtract(handShakingMessagesInCurrentLoop.keySet(), messagesTillNow.keySet());
             return messagesTillNow;
         }

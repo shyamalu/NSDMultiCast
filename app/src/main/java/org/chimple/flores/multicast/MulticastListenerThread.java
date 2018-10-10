@@ -8,6 +8,7 @@ import android.util.Log;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
+import java.net.SocketException;
 
 import static org.chimple.flores.application.P2PApplication.messageEvent;
 
@@ -23,15 +24,16 @@ public class MulticastListenerThread extends MulticastThread {
         super.run();
 
         DatagramPacket packet = new DatagramPacket(new byte[512], 512);
-
+        Log.d(TAG, "MulticastListenerThread running ->" + running.get());
         while (running.get()) {
             packet.setData(new byte[1024]);
-            Log.d(TAG, "MulticastListenerThread run loop");
+            Log.d(TAG, "MulticastListenerThread run loop " + (multicastSocket != null));
             try {
-                if (multicastSocket != null)
+                if (multicastSocket != null) {
                     multicastSocket.receive(packet);
-                else
+                } else {
                     break;
+                }
             } catch (IOException ignored) {
                 ignored.printStackTrace();
                 continue;
@@ -42,10 +44,6 @@ public class MulticastListenerThread extends MulticastThread {
             boolean isLoopBackMessage = getLocalIP().equals(packet.getAddress().getHostAddress()) ? true : false;
             final String consoleMessage = data;
             this.broadcastIncomingMessage(consoleMessage, packet.getAddress().getHostAddress(), isLoopBackMessage);
-        }
-        if (multicastSocket != null) {
-            Log.d(TAG, "MulticastListenerThread -> multicastSocket -> closed");
-            this.multicastSocket.close();
         }
     }
 
@@ -58,6 +56,18 @@ public class MulticastListenerThread extends MulticastThread {
             intent.putExtra("fromIP", fromIP);
             LocalBroadcastManager.getInstance(this.context).sendBroadcast(intent);
         }
+    }
+
+    public void cleanUp() {
+        if (multicastSocket != null && !running.get() && !multicastSocket.isClosed()) {
+            try {
+                Log.d(TAG, "MulticastListenerThread -> multicastSocket -> closed");
+                this.multicastSocket.close();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
     }
 }
 

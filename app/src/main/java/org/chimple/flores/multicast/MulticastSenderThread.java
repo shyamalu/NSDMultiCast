@@ -28,4 +28,7 @@ public class MulticastSenderThread extends MulticastThread {
             e.printStackTrace();
         }
     }
+
+    public void cleanUp() {
+    }
 }

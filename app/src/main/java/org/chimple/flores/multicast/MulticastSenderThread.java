@@ -21,9 +21,11 @@ public class MulticastSenderThread extends MulticastThread {
     public void run() {
         super.run();
         try {
-            byte[] bytesToSend = messageToSend.getBytes();
-            multicastSocket.send(new DatagramPacket(bytesToSend, bytesToSend.length, InetAddress.getByName(multicastIP), multicastPort));
-            multicastSocket.close();
+            if(messageToSend != null) {
+                byte[] bytesToSend = messageToSend.getBytes();
+                multicastSocket.send(new DatagramPacket(bytesToSend, bytesToSend.length, InetAddress.getByName(multicastIP), multicastPort));
+                multicastSocket.close();
+            }
         } catch (IOException e) {
             e.printStackTrace();
         }

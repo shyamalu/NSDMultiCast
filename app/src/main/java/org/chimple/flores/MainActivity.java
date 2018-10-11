@@ -23,6 +23,7 @@ public class MainActivity extends AppCompatActivity {
 
     private Toolbar toolbar;
     private TextView consoleView;
+    private TextView logView;
     private EditText messageToSendField;
     private MulticastManager manager;
     private MainActivity that = this;
@@ -41,6 +42,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onStart() {
         super.onStart();
         this.consoleView = (TextView) findViewById(R.id.consoleTextView);
+        this.logView = (TextView) findViewById(R.id.logTextView);
         this.messageToSendField = (EditText) findViewById(R.id.messageToSend);
         LocalBroadcastManager.getInstance(this).registerReceiver(mMessageReceiver, new IntentFilter(P2PApplication.uiMessageEvent));
     }
@@ -97,12 +99,18 @@ public class MainActivity extends AppCompatActivity {
         this.outputTextToConsole(consoleMessage);
     }
 
+    public void outputTextToLog(String message) {
+        this.logView.append(message);
+        ScrollView logScrollView = ((ScrollView) this.logView.getParent());
+        logScrollView.post(() -> logScrollView.fullScroll(View.FOCUS_DOWN));
+    }
+
     public void outputTextToConsole(String message) {
-
         this.consoleView.append(message);
-
         ScrollView scrollView = ((ScrollView) this.consoleView.getParent());
         scrollView.post(() -> scrollView.fullScroll(View.FOCUS_DOWN));
+
+
     }
 
     private BroadcastReceiver mMessageReceiver = new BroadcastReceiver() {
@@ -110,7 +118,12 @@ public class MainActivity extends AppCompatActivity {
         public void onReceive(Context context, Intent intent) {
             // Get extra data included in the Intent
             String message = intent.getStringExtra("message");
-            that.outputTextToConsole(message);
+            String type = intent.getStringExtra("type");
+            if(type.equals(P2PApplication.CONSOLE_TYPE)) {
+                that.outputTextToConsole(message);
+            } else if (type.equals(P2PApplication.LOG_TYPE)) {
+                that.outputTextToLog(message);
+            }
         }
     };
 

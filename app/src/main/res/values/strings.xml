@@ -8,6 +8,7 @@
     <string name="multicast_ip_hint">Multicast IP</string>
     <string name="multicast_port_hint">Multicast Port</string>
     <string name="console">Console</string>
+    <string name="log">Log</string>
     <string name="message_to_send">Message to Send</string>
     <string name="clear_console">Clear Console</string>
     <string name="send_message">Send Message</string>

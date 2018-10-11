@@ -32,6 +32,7 @@ public class P2PSyncInfo implements Serializable {
         this.recipientUserId = recipientUserId;
         this.message = message;
         this.messageType = messageType;
+        this.sender = deviceId;
         this.loggedAt = new Date();
     }
 

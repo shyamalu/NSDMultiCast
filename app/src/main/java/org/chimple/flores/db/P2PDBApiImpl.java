@@ -55,7 +55,9 @@ import org.chimple.flores.db.entity.SyncInfoMessageDeserializer;
 import org.chimple.flores.db.entity.SyncInfoRequestMessage;
 import org.chimple.flores.db.entity.SyncItemDeserializer;
 import org.chimple.flores.db.entity.SyncRequestMessageDeserializer;
+import org.chimple.flores.multicast.MulticastManager;
 
+import static org.chimple.flores.application.P2PApplication.CONSOLE_TYPE;
 import static org.chimple.flores.application.P2PApplication.NEW_MESSAGE_ADDED;
 import static org.chimple.flores.application.P2PApplication.SHARED_PREF;
 import static org.chimple.flores.application.P2PApplication.USER_ID;
@@ -67,20 +69,22 @@ public class P2PDBApiImpl {
     private AppDatabase db;
     private Context context;
     private static P2PDBApiImpl p2pDBApiInstance;
+    private static MulticastManager manager;
 
     public static P2PDBApiImpl getInstance(Context context) {
         synchronized (P2PDBApiImpl.class) {
             if (p2pDBApiInstance == null) {
-                p2pDBApiInstance = new P2PDBApiImpl(AppDatabase.getInstance(context), context);
+                p2pDBApiInstance = new P2PDBApiImpl(AppDatabase.getInstance(context), MulticastManager.getInstance(context), context);
             }
             return p2pDBApiInstance;
         }
     }
 
 
-    private P2PDBApiImpl(AppDatabase db, Context context) {
+    private P2PDBApiImpl(AppDatabase db, MulticastManager manager, Context context) {
         this.db = db;
         this.context = context;
+        this.manager = manager;
     }
 
     public void persistMessage(String userId, String deviceId, String recepientUserId, String message, String messageType) {
@@ -104,6 +108,8 @@ public class P2PDBApiImpl {
         if (found == null || found.size() == 0) {
             db.p2pSyncDao().insertP2PSyncInfo(message);
             Log.i(TAG, "inserted data" + message);
+            manager.getAllSyncInfosReceived().add(message.getDeviceId() + "_" + message.getUserId() + "_" + Long.valueOf(message.getSequence().longValue()));
+            manager.notifyUI(message.message, message.getSender(), CONSOLE_TYPE);
         } else {
             Log.i(TAG, "existing data" + message);
         }

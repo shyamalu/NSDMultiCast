@@ -65,9 +65,13 @@ public class MulticastThread extends Thread {
                     MulticastManager.getInstance(context).stopListening();
                 }
             });
-            String error = "Error: Cannot bind Address or Port.\n"
-                    + "An error occurred: " + e.getMessage();
+        } catch (Exception e) {
             e.printStackTrace();
+            handler.post(new Runnable() {
+                public void run() {
+                    MulticastManager.getInstance(context).stopListening();
+                }
+            });
         }
     }
 

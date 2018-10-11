@@ -24,12 +24,13 @@ public class MulticastListenerThread extends MulticastThread {
         super.run();
 
         DatagramPacket packet = new DatagramPacket(new byte[512], 512);
-        Log.d(TAG, "MulticastListenerThread running ->" + running.get());
+
         while (running.get()) {
             packet.setData(new byte[1024]);
             Log.d(TAG, "MulticastListenerThread run loop " + (multicastSocket != null));
             try {
-                if (multicastSocket != null) {
+                if (multicastSocket != null && !multicastSocket.isClosed()) {
+                    Log.d(TAG, "MulticastListenerThread running ->" + running.get());
                     multicastSocket.receive(packet);
                 } else {
                     break;

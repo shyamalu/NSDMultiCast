@@ -60,7 +60,12 @@ public class MulticastManager {
     public static final String multiCastConnectionChangedEvent = "multicast-connection-changed-event";
 
     private CountDownTimer waitForHandShakingMessagesTimer = null;
+    private CountDownTimer stopMulticastTimer = null;
+    private CountDownTimer startMulticastTimer = null;
+
     private static final int WAIT_FOR_HAND_SHAKING_MESSAGES = 5 * 1000; // 5 sec
+    private static final int STOP_MULTICAST_TIMER = 1 * 1000; // 1 sec
+    private static final int START_MULTICAST_TIMER = 5 * 1000; // 5 sec
 
 
     public static MulticastManager getInstance(Context context) {
@@ -86,6 +91,16 @@ public class MulticastManager {
         if (waitForHandShakingMessagesTimer != null) {
             waitForHandShakingMessagesTimer.cancel();
             waitForHandShakingMessagesTimer = null;
+        }
+
+        if (stopMulticastTimer != null) {
+            stopMulticastTimer.cancel();
+            stopMulticastTimer = null;
+        }
+
+        if (startMulticastTimer != null) {
+            startMulticastTimer.cancel();
+            startMulticastTimer = null;
         }
         stopListening();
         stopThreads();
@@ -208,11 +223,31 @@ public class MulticastManager {
             synchronized (MulticastManager.class) {
                 boolean isConnected = intent.getBooleanExtra("isConnected", false);
                 if (!isConnected) {
-                    notifyUI("stopping multicast operations", " ------> ", LOG_TYPE);
-                    instance.stopMultiCastOperations();
+                    stopMulticastTimer = new CountDownTimer(STOP_MULTICAST_TIMER, 1000) {
+                        @Override
+                        public void onTick(long millisUntilFinished) {
+
+                        }
+
+                        @Override
+                        public void onFinish() {
+                            notifyUI("stopping multicast operations", " ------> ", LOG_TYPE);
+                            instance.stopMultiCastOperations();
+                        }
+                    }.start();
                 } else {
-                    notifyUI("starting multicast operations", " ------> ", LOG_TYPE);
-                    instance.startMultiCastOperations();
+                    stopMulticastTimer = new CountDownTimer(START_MULTICAST_TIMER, 1000) {
+                        @Override
+                        public void onTick(long millisUntilFinished) {
+
+                        }
+
+                        @Override
+                        public void onFinish() {
+                            notifyUI("starting multicast operations", " ------> ", LOG_TYPE);
+                            instance.startMultiCastOperations();
+                        }
+                    }.start();
                 }
             }
         }

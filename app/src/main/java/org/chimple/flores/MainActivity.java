@@ -22,6 +22,11 @@ import org.chimple.flores.multicast.MulticastManager;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.chimple.flores.application.P2PApplication.CLEAR_CONSOLE_TYPE;
+import static org.chimple.flores.application.P2PApplication.NEW_MESSAGE_ADDED;
+import static org.chimple.flores.application.P2PApplication.newMessageAddedOnDevice;
+import static org.chimple.flores.application.P2PApplication.refreshDevice;
+
 public class MainActivity extends AppCompatActivity {
 
     private Toolbar toolbar;
@@ -49,6 +54,13 @@ public class MainActivity extends AppCompatActivity {
         this.logView = (TextView) findViewById(R.id.logTextView);
         this.messageToSendField = (EditText) findViewById(R.id.messageToSend);
         LocalBroadcastManager.getInstance(this).registerReceiver(mMessageReceiver, new IntentFilter(P2PApplication.uiMessageEvent));
+        broadCastRefreshDevice();
+    }
+
+    private void broadCastRefreshDevice() {
+        Intent intent = new Intent(refreshDevice);
+        LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
+
     }
 
     protected void onStop() {
@@ -127,8 +139,10 @@ public class MainActivity extends AppCompatActivity {
                 that.outputTextToConsole(message);
             } else if (type.equals(P2PApplication.LOG_TYPE)) {
                 that.outputTextToLog(message);
+            } else if(type.equals(CLEAR_CONSOLE_TYPE)) {
+                that.clearConsole();
             }
-        }
+         }
     };
 
 }

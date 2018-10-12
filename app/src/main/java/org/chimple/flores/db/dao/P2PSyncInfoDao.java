@@ -15,6 +15,11 @@ import org.chimple.flores.db.entity.P2PUserIdMessage;
 
 @Dao
 public interface P2PSyncInfoDao {
+
+    @Query("SELECT * FROM P2PSyncInfo order by logged_at asc")
+    public P2PSyncInfo[] refreshAllMessages();
+
+
     @Query("SELECT * FROM P2PSyncInfo WHERE user_id=:userId AND device_id=:deviceId")
     public P2PSyncInfo[] getSyncInformationByUserIdAndDeviceId(String userId, String deviceId);
 

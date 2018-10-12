@@ -10,6 +10,7 @@ import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.bag.SynchronizedBag;
 import org.chimple.flores.application.NetworkUtil;
 import org.chimple.flores.application.P2PApplication;
 import org.chimple.flores.db.DBSyncManager;
@@ -34,10 +35,13 @@ import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import static org.chimple.flores.application.P2PApplication.CLEAR_CONSOLE_TYPE;
+import static org.chimple.flores.application.P2PApplication.CONSOLE_TYPE;
 import static org.chimple.flores.application.P2PApplication.LOG_TYPE;
 import static org.chimple.flores.application.P2PApplication.MULTICAST_IP_ADDRESS;
 import static org.chimple.flores.application.P2PApplication.MULTICAST_IP_PORT;
 import static org.chimple.flores.application.P2PApplication.NEW_MESSAGE_ADDED;
+import static org.chimple.flores.application.P2PApplication.REFRESH_DEVICE;
 import static org.chimple.flores.application.P2PApplication.uiMessageEvent;
 
 public class MulticastManager {
@@ -89,7 +93,7 @@ public class MulticastManager {
     public void onCleanUp() {
         stopListening();
         stopThreads();
-        if(instance != null) {
+        if (instance != null) {
             instance.unregisterMulticastBroadcasts();
         }
         instance = null;
@@ -184,12 +188,18 @@ public class MulticastManager {
             newMessageAddedReceiver = null;
         }
 
+        if (refreshDeviceReceiver != null) {
+            LocalBroadcastManager.getInstance(this.context).unregisterReceiver(refreshDeviceReceiver);
+            refreshDeviceReceiver = null;
+        }
+
     }
 
     private void registerMulticastBroadcasts() {
         LocalBroadcastManager.getInstance(this.context).registerReceiver(netWorkChangerReceiver, new IntentFilter(multiCastConnectionChangedEvent));
         LocalBroadcastManager.getInstance(this.context).registerReceiver(mMessageEventReceiver, new IntentFilter(P2PApplication.messageEvent));
         LocalBroadcastManager.getInstance(this.context).registerReceiver(newMessageAddedReceiver, new IntentFilter(P2PApplication.newMessageAddedOnDevice));
+        LocalBroadcastManager.getInstance(this.context).registerReceiver(refreshDeviceReceiver, new IntentFilter(P2PApplication.refreshDevice));
     }
 
 
@@ -236,6 +246,26 @@ public class MulticastManager {
                         }
                     }.start();
                 }
+            }
+        }
+    };
+
+
+    private BroadcastReceiver refreshDeviceReceiver = new BroadcastReceiver() {
+        public void onReceive(Context context, Intent intent) {
+            synchronized (MulticastManager.class) {
+                notifyUI("Clear ALL...", " ------> ", CLEAR_CONSOLE_TYPE);
+                List<P2PSyncInfo> allInfos = p2PDBApiImpl.refreshAllMessages();
+                if (allInfos != null) {
+                    Iterator<P2PSyncInfo> allInfosIt = allInfos.iterator();
+                    while (allInfosIt.hasNext()) {
+                        P2PSyncInfo p = allInfosIt.next();
+                        instance.getAllSyncInfosReceived().add(p.getDeviceId() + "_" + p.getUserId() + "_" + Long.valueOf(p.getSequence().longValue()));
+                        String sender = p.getSender().equals(P2PApplication.getCurrentDevice()) ? "You" : p.getSender();
+                        notifyUI(p.message, sender, CONSOLE_TYPE);
+                    }
+                }
+                Log.d(TAG, "rebuild sync info received cache and updated UI");
             }
         }
     };

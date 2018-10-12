@@ -622,6 +622,10 @@ public class P2PDBApiImpl {
         return Arrays.asList(db.p2pSyncDao().fetchAllUsers());
     }
 
+    public List<P2PSyncInfo> refreshAllMessages() {
+        return Arrays.asList(db.p2pSyncDao().refreshAllMessages());
+    }
+
     public List<P2PSyncInfo> getSyncInformationByUserIdAndDeviceId(String userId, String deviceId) {
         return Arrays.asList(db.p2pSyncDao().getSyncInformationByUserIdAndDeviceId(userId, deviceId));
     }

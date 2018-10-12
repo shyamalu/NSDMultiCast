@@ -16,14 +16,17 @@ public class P2PApplication extends Application {
     public static final String USER_ID = "USER_ID";
     public static final String DEVICE_ID = "DEVICE_ID";
     public static final String NEW_MESSAGE_ADDED = "NEW_MESSAGE_ADDED";
+    public static final String REFRESH_DEVICE = "REFRESH_DEVICE";
     public static final String messageEvent = "message-event";
     public static final String uiMessageEvent = "ui-message-event";
     public static final String newMessageAddedOnDevice = "new-message-added-event";
+    public static final String refreshDevice = "refresh-device-event";
     public static final String MULTICAST_IP_ADDRESS = "235.1.1.0";
     public static final String MULTICAST_IP_PORT = "4450";
 
     public static final String CONSOLE_TYPE = "console";
     public static final String LOG_TYPE = "log";
+    public static final String CLEAR_CONSOLE_TYPE = "clear-console";
 
 
     private static final String TAG = P2PApplication.class.getName();

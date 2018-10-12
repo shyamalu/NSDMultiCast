@@ -19,6 +19,9 @@ import android.widget.TextView;
 import org.chimple.flores.application.P2PApplication;
 import org.chimple.flores.multicast.MulticastManager;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class MainActivity extends AppCompatActivity {
 
     private Toolbar toolbar;
@@ -27,6 +30,7 @@ public class MainActivity extends AppCompatActivity {
     private EditText messageToSendField;
     private MulticastManager manager;
     private MainActivity that = this;
+    private static List<BroadcastReceiver> receivers = new ArrayList<BroadcastReceiver>();
 
 
     protected void onCreate(Bundle savedInstanceState) {
@@ -47,16 +51,16 @@ public class MainActivity extends AppCompatActivity {
         LocalBroadcastManager.getInstance(this).registerReceiver(mMessageReceiver, new IntentFilter(P2PApplication.uiMessageEvent));
     }
 
-
     protected void onStop() {
         super.onStop();
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(mMessageReceiver);
     }
 
 
     protected void onDestroy() {
         super.onDestroy();
-        LocalBroadcastManager.getInstance(this).unregisterReceiver(mMessageReceiver);
         manager.onCleanUp();
+
     }
 
 

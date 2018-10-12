@@ -19,7 +19,7 @@ public class P2PApplication extends Application {
     public static final String messageEvent = "message-event";
     public static final String uiMessageEvent = "ui-message-event";
     public static final String newMessageAddedOnDevice = "new-message-added-event";
-    public static final String MULTICAST_IP_ADDRESS = "233.1.1.0";
+    public static final String MULTICAST_IP_ADDRESS = "235.1.1.0";
     public static final String MULTICAST_IP_PORT = "4450";
 
     public static final String CONSOLE_TYPE = "console";

@@ -429,7 +429,7 @@ public class P2PDBApiImpl {
             p2PSyncInfos.add(syncInfo);
 
             Gson gson = this.registerP2PSyncInfoBuilder();
-            SyncInfoMessage message = new SyncInfoMessage("syncInfoMessage", P2PApplication.getCurrentDevice(), p2PSyncInfos);
+            SyncInfoMessage message = new SyncInfoMessage("syncInfoMessage", syncInfo.getSender(), p2PSyncInfos);
             Type syncInfoMessageType = new TypeToken<SyncInfoMessage>() {
             }.getType();
             String json = gson.toJson(message, syncInfoMessageType);
@@ -441,6 +441,7 @@ public class P2PDBApiImpl {
         }
     }
 
+    /* not longer used sender should be real sydner in p2pSyncInfos*/
     public String convertP2PSyncInfoToJsonUsingStreaming(List<P2PSyncInfo> p2PSyncInfos) {
         String json = "";
         try {

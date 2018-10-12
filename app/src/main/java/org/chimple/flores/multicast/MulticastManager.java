@@ -34,7 +34,6 @@ import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-import static org.chimple.flores.application.P2PApplication.CONSOLE_TYPE;
 import static org.chimple.flores.application.P2PApplication.LOG_TYPE;
 import static org.chimple.flores.application.P2PApplication.MULTICAST_IP_ADDRESS;
 import static org.chimple.flores.application.P2PApplication.MULTICAST_IP_PORT;
@@ -65,7 +64,7 @@ public class MulticastManager {
 
     private static final int WAIT_FOR_HAND_SHAKING_MESSAGES = 5 * 1000; // 5 sec
     private static final int STOP_MULTICAST_TIMER = 1 * 1000; // 1 sec
-    private static final int START_MULTICAST_TIMER = 5 * 1000; // 5 sec
+    private static final int START_MULTICAST_TIMER = 3 * 1000; // 3 sec
 
 
     public static MulticastManager getInstance(Context context) {
@@ -88,23 +87,11 @@ public class MulticastManager {
     }
 
     public void onCleanUp() {
-        if (waitForHandShakingMessagesTimer != null) {
-            waitForHandShakingMessagesTimer.cancel();
-            waitForHandShakingMessagesTimer = null;
-        }
-
-        if (stopMulticastTimer != null) {
-            stopMulticastTimer.cancel();
-            stopMulticastTimer = null;
-        }
-
-        if (startMulticastTimer != null) {
-            startMulticastTimer.cancel();
-            startMulticastTimer = null;
-        }
         stopListening();
         stopThreads();
-        instance.unregisterMulticastBroadcasts();
+        if(instance != null) {
+            instance.unregisterMulticastBroadcasts();
+        }
         instance = null;
     }
 
@@ -187,9 +174,9 @@ public class MulticastManager {
             netWorkChangerReceiver = null;
         }
 
-        if (mMessageReceiver != null) {
-            LocalBroadcastManager.getInstance(this.context).unregisterReceiver(mMessageReceiver);
-            mMessageReceiver = null;
+        if (mMessageEventReceiver != null) {
+            LocalBroadcastManager.getInstance(this.context).unregisterReceiver(mMessageEventReceiver);
+            mMessageEventReceiver = null;
         }
 
         if (newMessageAddedReceiver != null) {
@@ -201,7 +188,7 @@ public class MulticastManager {
 
     private void registerMulticastBroadcasts() {
         LocalBroadcastManager.getInstance(this.context).registerReceiver(netWorkChangerReceiver, new IntentFilter(multiCastConnectionChangedEvent));
-        LocalBroadcastManager.getInstance(this.context).registerReceiver(mMessageReceiver, new IntentFilter(P2PApplication.messageEvent));
+        LocalBroadcastManager.getInstance(this.context).registerReceiver(mMessageEventReceiver, new IntentFilter(P2PApplication.messageEvent));
         LocalBroadcastManager.getInstance(this.context).registerReceiver(newMessageAddedReceiver, new IntentFilter(P2PApplication.newMessageAddedOnDevice));
     }
 
@@ -223,7 +210,7 @@ public class MulticastManager {
             synchronized (MulticastManager.class) {
                 boolean isConnected = intent.getBooleanExtra("isConnected", false);
                 if (!isConnected) {
-                    stopMulticastTimer = new CountDownTimer(STOP_MULTICAST_TIMER, 1000) {
+                    instance.stopMulticastTimer = new CountDownTimer(STOP_MULTICAST_TIMER, 1000) {
                         @Override
                         public void onTick(long millisUntilFinished) {
 
@@ -236,7 +223,7 @@ public class MulticastManager {
                         }
                     }.start();
                 } else {
-                    stopMulticastTimer = new CountDownTimer(START_MULTICAST_TIMER, 1000) {
+                    instance.startMulticastTimer = new CountDownTimer(START_MULTICAST_TIMER, 1000) {
                         @Override
                         public void onTick(long millisUntilFinished) {
 
@@ -264,7 +251,7 @@ public class MulticastManager {
         }
     };
 
-    private BroadcastReceiver mMessageReceiver = new BroadcastReceiver() {
+    private BroadcastReceiver mMessageEventReceiver = new BroadcastReceiver() {
 
         public void onReceive(Context context, Intent intent) {
             // Get extra data included in the Intent
